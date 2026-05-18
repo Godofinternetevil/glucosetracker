@@ -1,25 +1,40 @@
 package com.example.glucosetracker
 
 import android.os.Bundle
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.ui.platform.ComposeView
-import com.example.glucosetracker.ui.screens.HomeScreen
-import com.example.glucosetracker.viewmodel.HomeViewModel
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 
-class MainActivity : AppCompatActivity() {
-
-    private val viewModel: HomeViewModel by viewModels()
+class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContent {
+            GlucoseTrackerApp()
+        }
+    }
+}
 
-        setContentView(R.layout.activity_main)
-
-        val composeView = findViewById<ComposeView>(R.id.composeView)
-
-        composeView.setContent {
-            HomeScreen(viewModel)
+@androidx.compose.runtime.Composable
+private fun GlucoseTrackerApp() {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = "Glucose Tracker")
+            Text(text = "Start adding your glucose records")
         }
     }
 }
