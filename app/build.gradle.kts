@@ -11,7 +11,6 @@ android {
     defaultConfig {
         applicationId = "com.example.glucosetracker"
         minSdk = 26
-        // sdk36 don't leave
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -22,7 +21,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.15"
+        kotlinCompilerExtensionVersion = "1.5.14"
     }
 
     kotlinOptions {
@@ -47,6 +46,9 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     kapt("androidx.room:room-compiler:2.6.1")
+
+    // Material Components (XML themes)
+    implementation("com.google.android.material:material:1.12.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
