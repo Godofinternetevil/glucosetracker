@@ -6,13 +6,13 @@ plugins {
 
 android {
     namespace = "com.example.glucosetracker"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.glucosetracker"
         minSdk = 26
         // sdk36 don't leave
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
     }
@@ -47,6 +47,9 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     kapt("androidx.room:room-compiler:2.6.1")
+
+    // Material Components (XML themes)
+    implementation("com.google.android.material:material:1.14.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

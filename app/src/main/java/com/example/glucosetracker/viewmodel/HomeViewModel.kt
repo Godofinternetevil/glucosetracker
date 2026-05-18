@@ -7,6 +7,7 @@ import com.example.glucosetracker.data.local.AppDatabase
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.repository.GlucoseRepository
+import com.example.glucosetracker.data.repository.NightscoutRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
