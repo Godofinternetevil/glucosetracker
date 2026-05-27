@@ -3,14 +3,14 @@ package com.example.glucosetracker
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.glucosetracker.ui.screens.HomeScreen
+import com.example.glucosetracker.ui.theme.GlucoseTrackerTheme
+import com.example.glucosetracker.viewmodel.HomeViewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -24,17 +24,14 @@ class MainActivity : ComponentActivity() {
 
 @androidx.compose.runtime.Composable
 private fun GlucoseTrackerApp() {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Column(
+    val homeViewModel: HomeViewModel = viewModel()
+
+    GlucoseTrackerTheme {
+        Surface(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+            color = MaterialTheme.colorScheme.background
         ) {
-            Text(text = "Glucose Tracker")
-            Text(text = "Start adding your glucose records")
+            HomeScreen(viewModel = homeViewModel)
         }
     }
 }
