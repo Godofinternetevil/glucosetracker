@@ -4,6 +4,9 @@ plugins {
     id("kotlin-kapt")
 }
 
+
+
+
 android {
     namespace = "com.example.glucosetracker"
     compileSdk = 34
@@ -22,6 +25,11 @@ android {
 
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
