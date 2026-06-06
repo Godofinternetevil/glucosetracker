@@ -24,7 +24,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -42,7 +41,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
-import com.example.glucosetracker.ui.components.AppBottomBar
 import com.example.glucosetracker.ui.components.CurrentGlucoseCard
 import com.example.glucosetracker.ui.components.GlucoseChart
 import com.example.glucosetracker.ui.components.StatsCard
@@ -58,7 +56,11 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: HomeViewModel) {
+fun HomeScreen(
+    viewModel: HomeViewModel,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues()
+) {
     val glucoseList by viewModel.glucoseList.collectAsState()
     val mealsList by viewModel.mealsList.collectAsState()
     val sortedGlucose = glucoseList.sortedBy { it.timestamp }
@@ -72,53 +74,48 @@ fun HomeScreen(viewModel: HomeViewModel) {
         sortedGlucose.filter { it.timestamp >= since }.ifEmpty { sortedGlucose.takeLast(24) }
     }
 
-    Scaffold(
-        containerColor = AppColors.Background,
-        bottomBar = { AppBottomBar() }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(AppColors.Background)
-                .padding(paddingValues),
-            contentPadding = PaddingValues(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item { TopBar() }
-            item {
-                CurrentGlucoseCard(
-                    glucose = currentGlucose,
-                    trend = currentGlucose?.let { glucoseStatusText(it) } ?: "Данные не синхронизированы",
-                    updatedAt = currentEntry?.timestamp?.let { "Обновлено ${formatTime(it)}" } ?: "Добавьте или синхронизируйте значения"
-                )
-            }
-            item {
-                GlucoseChartCard(
-                    glucoseList = chartGlucose,
-                    selectedRange = selectedRange,
-                    onRangeSelected = { selectedRange = it }
-                )
-            }
-            item {
-                StatsCard(
-                    averageGlucose = averageGlucoseText(sortedGlucose),
-                    timeInRange = timeInRangeText(sortedGlucose),
-                    gmiEstimate = gmiEstimateText(sortedGlucose)
-                )
-            }
-            item {
-                TodayEventsCard(
-                    events = mealsList.map { meal ->
-                        TodayEvent(
-                            title = meal.mealName,
-                            subtitle = "${meal.carbs} г углеводов",
-                            timestamp = meal.timestamp,
-                            type = TodayEventType.Meal
-                        )
-                    },
-                    onAddClick = { isAddSheetVisible = true }
-                )
-            }
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AppColors.Background)
+            .padding(contentPadding),
+        contentPadding = PaddingValues(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item { TopBar() }
+        item {
+            CurrentGlucoseCard(
+                glucose = currentGlucose,
+                trend = currentGlucose?.let { glucoseStatusText(it) } ?: "Данные не синхронизированы",
+                updatedAt = currentEntry?.timestamp?.let { "Обновлено ${formatTime(it)}" } ?: "Добавьте или синхронизируйте значения"
+            )
+        }
+        item {
+            GlucoseChartCard(
+                glucoseList = chartGlucose,
+                selectedRange = selectedRange,
+                onRangeSelected = { selectedRange = it }
+            )
+        }
+        item {
+            StatsCard(
+                averageGlucose = averageGlucoseText(sortedGlucose),
+                timeInRange = timeInRangeText(sortedGlucose),
+                gmiEstimate = gmiEstimateText(sortedGlucose)
+            )
+        }
+        item {
+            TodayEventsCard(
+                events = mealsList.map { meal ->
+                    TodayEvent(
+                        title = meal.mealName,
+                        subtitle = "${meal.carbs} г углеводов",
+                        timestamp = meal.timestamp,
+                        type = TodayEventType.Meal
+                    )
+                },
+                onAddClick = { isAddSheetVisible = true }
+            )
         }
     }
 

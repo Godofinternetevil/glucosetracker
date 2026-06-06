@@ -13,8 +13,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.glucosetracker.ui.theme.AppColors
 
+data class BottomBarItem(
+    val route: String,
+    val label: String,
+    val icon: String
+)
+
 @Composable
-fun AppBottomBar(modifier: Modifier = Modifier) {
+fun AppBottomBar(
+    items: List<BottomBarItem>,
+    currentRoute: String?,
+    onItemClick: (BottomBarItem) -> Unit,
+    modifier: Modifier = Modifier
+) {
     NavigationBar(
         modifier = modifier
             .fillMaxWidth()
@@ -22,20 +33,31 @@ fun AppBottomBar(modifier: Modifier = Modifier) {
         containerColor = AppColors.Card,
         tonalElevation = 0.dp
     ) {
-        BottomItem(label = "Главная", selected = true, modifier = Modifier.weight(1f))
-        BottomItem(label = "Графики", selected = false, modifier = Modifier.weight(1f))
-        BottomItem(label = "События", selected = false, modifier = Modifier.weight(1f))
-        BottomItem(label = "Профиль", selected = false, modifier = Modifier.weight(1f))
+        items.forEach { item ->
+            BottomItem(
+                label = item.label,
+                icon = item.icon,
+                selected = item.route == currentRoute,
+                onClick = { onItemClick(item) },
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
 @Composable
-private fun RowScope.BottomItem(label: String, selected: Boolean, modifier: Modifier = Modifier) {
+private fun RowScope.BottomItem(
+    label: String,
+    icon: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     NavigationBarItem(
         modifier = modifier,
         selected = selected,
-        onClick = { },
-        icon = { Text(if (selected) "●" else "○") },
+        onClick = onClick,
+        icon = { Text(if (selected) icon else "○") },
         label = {
             Text(
                 text = label,
