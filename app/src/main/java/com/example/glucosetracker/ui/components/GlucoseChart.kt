@@ -28,19 +28,19 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.ui.theme.AppColors
+import com.example.glucosetracker.ui.theme.AppDimens
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.max
-import kotlin.math.min
 
 private const val MILLIS_IN_HOUR = 60L * 60L * 1000L
 private const val MIN_CHART_GLUCOSE = 2f
-private const val MAX_CHART_GLUCOSE = 14f
+private const val MAX_CHART_GLUCOSE = 16f
 
 @Composable
 fun GlucoseChart(
@@ -62,14 +62,17 @@ fun GlucoseChart(
 
     Column(modifier = modifier) {
         Row(
-            modifier = Modifier.padding(bottom = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ranges.forEach { range ->
                 ChartRangeChip(
                     text = "$range ч",
                     selected = range == selectedRangeHours,
-                    onClick = { onRangeChanged(range) }
+                    onClick = { onRangeChanged(range) },
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
@@ -81,25 +84,26 @@ fun GlucoseChart(
             targetHigh = targetHigh,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(202.dp)
+                .height(226.dp)
         )
     }
 }
 
 @Composable
-private fun ChartRangeChip(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun ChartRangeChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val background = if (selected) AppColors.BlueAccent else AppColors.Background
     val content = if (selected) AppColors.Card else AppColors.TextSecondary
     Text(
         text = text,
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+        modifier = modifier
+            .clip(RoundedCornerShape(AppDimens.ChipRadius))
             .background(background)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 9.dp),
         color = content,
         style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold
+        fontWeight = FontWeight.SemiBold,
+        textAlign = TextAlign.Center
     )
 }
 
@@ -113,16 +117,21 @@ private fun GlucoseChartCanvas(
     modifier: Modifier = Modifier
 ) {
     val lineColor = AppColors.PrimaryGreen
-    val targetColor = AppColors.PrimaryGreen.copy(alpha = 0.12f)
+    val targetColor = AppColors.TargetRangeFill
     val lowColor = AppColors.Danger
     val highColor = AppColors.HighGlucose
     val textColor = AppColors.TextSecondary
-    val gridColor = AppColors.Background
+    val gridColor = AppColors.ChartGrid
     val darkText = AppColors.TextDark
     val timeFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     Canvas(modifier = modifier.fillMaxSize()) {
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val yLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor.toArgb()
+            textSize = 11.sp.toPx()
+            textAlign = Paint.Align.LEFT
+        }
+        val xLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor.toArgb()
             textSize = 11.sp.toPx()
             textAlign = Paint.Align.CENTER
@@ -133,18 +142,16 @@ private fun GlucoseChartCanvas(
             textAlign = Paint.Align.CENTER
         }
 
-        val plotLeft = 6.dp.toPx()
-        val plotRight = size.width - 6.dp.toPx()
-        val plotTop = 4.dp.toPx()
-        val plotBottom = size.height - 28.dp.toPx()
+        val plotLeft = 4.dp.toPx()
+        val plotRight = size.width - 38.dp.toPx()
+        val plotTop = 6.dp.toPx()
+        val plotBottom = size.height - 30.dp.toPx()
         val plotWidth = plotRight - plotLeft
         val plotHeight = plotBottom - plotTop
-        val glucoseMin = min(MIN_CHART_GLUCOSE, targetLow - 0.5f)
-        val glucoseMax = max(MAX_CHART_GLUCOSE, targetHigh + 0.5f)
-        val glucoseRange = glucoseMax - glucoseMin
+        val glucoseRange = MAX_CHART_GLUCOSE - MIN_CHART_GLUCOSE
         val duration = (rangeEnd - rangeStart).coerceAtLeast(1L).toFloat()
         val thresholdStrokeWidth = 1.5.dp.toPx()
-        val thresholdDashEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 7.dp.toPx()), 0f)
+        val thresholdDashEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()), 0f)
 
         fun xFor(timestamp: Long): Float {
             val progress = ((timestamp - rangeStart).toFloat() / duration).coerceIn(0f, 1f)
@@ -152,17 +159,24 @@ private fun GlucoseChartCanvas(
         }
 
         fun yFor(glucose: Float): Float {
-            val progress = ((glucose - glucoseMin) / glucoseRange).coerceIn(0f, 1f)
+            val progress = ((glucose - MIN_CHART_GLUCOSE) / glucoseRange).coerceIn(0f, 1f)
             return plotBottom - progress * plotHeight
         }
 
-        repeat(4) { index ->
-            val y = plotTop + (plotHeight / 3f) * index
+        val yLabels = listOf(16f to "16", 10f to "10.0", 3.9f to "3.9", 2f to "2.0")
+        yLabels.forEach { (value, label) ->
+            val y = yFor(value)
             drawLine(
                 color = gridColor,
                 start = Offset(plotLeft, y),
                 end = Offset(plotRight, y),
                 strokeWidth = 1.dp.toPx()
+            )
+            drawContext.canvas.nativeCanvas.drawText(
+                label,
+                plotRight + 8.dp.toPx(),
+                y + 4.dp.toPx(),
+                yLabelPaint
             )
         }
 
@@ -194,7 +208,7 @@ private fun GlucoseChartCanvas(
         if (glucoseList.isEmpty()) {
             drawContext.canvas.nativeCanvas.drawText(
                 "Нет данных для графика",
-                size.width / 2f,
+                plotLeft + plotWidth / 2f,
                 plotTop + plotHeight / 2f,
                 emptyPaint
             )
@@ -213,8 +227,13 @@ private fun GlucoseChartCanvas(
             )
             points.forEach { point ->
                 drawCircle(
+                    color = AppColors.Card,
+                    radius = 5.5.dp.toPx(),
+                    center = point
+                )
+                drawCircle(
                     color = lineColor,
-                    radius = 4.dp.toPx(),
+                    radius = 3.8.dp.toPx(),
                     center = point
                 )
             }
@@ -223,21 +242,21 @@ private fun GlucoseChartCanvas(
         val labelTimestamps = listOf(
             rangeStart,
             rangeStart + (rangeEnd - rangeStart) / 3,
-            rangeStart + (rangeEnd - rangeStart) * 2 / 3
+            rangeStart + (rangeEnd - rangeStart) * 2 / 3,
+            rangeEnd
         )
-        labelTimestamps.forEach { timestamp ->
+        labelTimestamps.forEachIndexed { index, timestamp ->
+            xLabelPaint.textAlign = when (index) {
+                0 -> Paint.Align.LEFT
+                labelTimestamps.lastIndex -> Paint.Align.RIGHT
+                else -> Paint.Align.CENTER
+            }
             drawContext.canvas.nativeCanvas.drawText(
-                timeFormatter.format(Date(timestamp)),
+                if (index == labelTimestamps.lastIndex) "Сейчас" else timeFormatter.format(Date(timestamp)),
                 xFor(timestamp),
                 size.height - 8.dp.toPx(),
-                labelPaint
+                xLabelPaint
             )
         }
-        drawContext.canvas.nativeCanvas.drawText(
-            "Сейчас",
-            plotRight,
-            size.height - 8.dp.toPx(),
-            labelPaint.apply { textAlign = Paint.Align.RIGHT }
-        )
     }
 }

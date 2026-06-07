@@ -1,6 +1,8 @@
 package com.example.glucosetracker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +45,7 @@ import com.example.glucosetracker.ui.components.TodayEvent
 import com.example.glucosetracker.ui.components.TodayEventType
 import com.example.glucosetracker.ui.components.TodayEventsCard
 import com.example.glucosetracker.ui.theme.AppColors
+import com.example.glucosetracker.ui.theme.AppDimens
 import com.example.glucosetracker.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -74,7 +77,7 @@ fun HomeScreen(
             .fillMaxSize()
             .background(AppColors.Background)
             .padding(contentPadding),
-        contentPadding = PaddingValues(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 18.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item { TopBar() }
@@ -131,14 +134,14 @@ private fun TopBar() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        CircleIcon(text = "☰")
+        CircleIcon(text = "≡")
         Text(
             text = "CGM",
             color = AppColors.TextDark,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
-        CircleIcon(text = "🔔")
+        CircleIcon(text = "•")
     }
 }
 
@@ -147,7 +150,8 @@ private fun CircleIcon(text: String) {
     Box(
         modifier = Modifier
             .size(44.dp)
-            .background(AppColors.Card, CircleShape),
+            .background(AppColors.Card, CircleShape)
+            .border(BorderStroke(AppDimens.SoftBorderWidth, AppColors.Border), CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Text(text = text, color = AppColors.TextDark)
@@ -161,25 +165,27 @@ private fun GlucoseChartCard(
     onRangeSelected: (Int) -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(BorderStroke(AppDimens.SoftBorderWidth, AppColors.Border), RoundedCornerShape(AppDimens.SmallCardRadius)),
         colors = CardDefaults.cardColors(containerColor = AppColors.Card),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(24.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = AppDimens.CardElevation),
+        shape = RoundedCornerShape(AppDimens.SmallCardRadius)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Сегодня",
+                    text = "Динамика глюкозы",
                     color = AppColors.TextDark,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Цель 3.9–10",
+                    text = "Цель 3.9–10.0",
                     color = AppColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall
                 )
