@@ -22,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,7 +75,8 @@ fun TodayEventsCard(
                     style = MaterialTheme.typography.bodyMedium
                 )
             } else {
-                events.sortedByDescending { it.timestamp }.take(5).forEach { event ->
+                val sortedEvents = events.sortedByDescending { it.timestamp }
+                sortedEvents.take(5).forEach { event ->
                     EventRow(
                         event = event,
                         modifier = Modifier.padding(top = 16.dp)
@@ -90,8 +90,14 @@ fun TodayEventsCard(
 @Composable
 private fun EventRow(event: TodayEvent, modifier: Modifier = Modifier) {
     val timeFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val tint = if (event.type == TodayEventType.Injection) AppColors.PrimaryGreen else AppColors.BlueAccent
-    val tintBackground = if (event.type == TodayEventType.Injection) AppColors.PrimaryGreenSoft else AppColors.BlueAccentSoft
+    val tint = when (event.type) {
+        TodayEventType.Injection -> AppColors.PrimaryGreen
+        TodayEventType.Meal -> AppColors.BlueAccent
+    }
+    val tintBackground = when (event.type) {
+        TodayEventType.Injection -> AppColors.PrimaryGreenSoft
+        TodayEventType.Meal -> AppColors.BlueAccentSoft
+    }
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -136,11 +142,13 @@ private fun EventRow(event: TodayEvent, modifier: Modifier = Modifier) {
                 overflow = TextOverflow.Ellipsis,
                 fontWeight = FontWeight.SemiBold
             )
-            Text(
-                text = event.subtitle,
-                color = AppColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall
-            )
+            if (event.subtitle.isNotBlank()) {
+                Text(
+                    text = event.subtitle,
+                    color = AppColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
         Text(
             text = "›",

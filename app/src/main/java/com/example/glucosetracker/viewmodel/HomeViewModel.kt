@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.glucosetracker.data.local.AppDatabase
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
+import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.repository.GlucoseRepository
 import com.example.glucosetracker.data.repository.NightscoutRepository
@@ -61,6 +62,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyList()
         )
 
+    val injectionsList = repository.injectionsList
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
     fun addGlucose(level: Float) {
         viewModelScope.launch {
             repository.insertGlucose(
@@ -75,6 +83,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 MealEntry(
                     mealName = name,
                     carbs = carbs
+                )
+            )
+        }
+    }
+
+    fun addInjection(
+        insulinUnits: Float,
+        insulinType: String,
+        injectionType: String,
+        notes: String
+    ) {
+        viewModelScope.launch {
+            repository.insertInjection(
+                InjectionEntry(
+                    insulinUnits = insulinUnits,
+                    insulinType = insulinType,
+                    injectionType = injectionType,
+                    notes = notes
                 )
             )
         }

@@ -44,17 +44,8 @@ fun HistoryScreen(
 ) {
     val glucoseList by viewModel.glucoseList.collectAsState()
     val mealsList by viewModel.mealsList.collectAsState()
-    val insulinEvents = remember {
-        listOf(
-            HistoryEvent(
-                title = "Инсулин",
-                subtitle = "Нет подключенных записей болюса или базы",
-                timestamp = 0L,
-                marker = "💉"
-            )
-        )
-    }
-    val events = remember(glucoseList, mealsList) {
+    val injectionsList by viewModel.injectionsList.collectAsState()
+    val events = remember(glucoseList, mealsList, injectionsList) {
         val glucoseEvents = glucoseList.map { entry ->
             HistoryEvent(
                 title = "Глюкоза ${"%.1f".format(entry.glucoseLevel)} ммоль/л",
@@ -71,7 +62,17 @@ fun HistoryScreen(
                 marker = "🍽"
             )
         }
-        (glucoseEvents + mealEvents).sortedByDescending { it.timestamp }
+        val injectionEvents = injectionsList.map { injection ->
+            HistoryEvent(
+                title = "Инсулин ${injection.insulinUnits.formatUnits()} ед.",
+                subtitle = listOf(injection.injectionType, injection.insulinType, injection.notes)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" • "),
+                timestamp = injection.timestamp,
+                marker = "💉"
+            )
+        }
+        (glucoseEvents + mealEvents + injectionEvents).sortedByDescending { it.timestamp }
     }
 
     LazyColumn(
@@ -93,20 +94,13 @@ fun HistoryScreen(
             item {
                 EmptyCard(
                     title = "Пока нет событий",
-                    subtitle = "Добавьте глюкозу или прием пищи на главном экране, чтобы увидеть их в истории."
+                    subtitle = "Добавьте глюкозу, прием пищи или инъекцию на главном экране, чтобы увидеть их в истории."
                 )
             }
         } else {
             items(events) { event ->
                 HistoryEventCard(event = event)
             }
-        }
-
-        item {
-            HistoryEventCard(
-                event = insulinEvents.first(),
-                showTime = false
-            )
         }
     }
 }
@@ -197,3 +191,9 @@ private fun glucoseStatus(glucose: Float): String = when {
 
 private fun formatHistoryTime(timestamp: Long): String =
     SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+private fun Float.formatUnits(): String = if (this % 1f == 0f) {
+    toInt().toString()
+} else {
+    "%.1f".format(this)
+}

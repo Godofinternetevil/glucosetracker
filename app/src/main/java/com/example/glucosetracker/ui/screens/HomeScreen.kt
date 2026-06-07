@@ -8,16 +8,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
+import com.example.glucosetracker.data.local.entities.InjectionEntry
+import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.ui.components.CurrentGlucoseCard
 import com.example.glucosetracker.ui.components.GlucoseChart
 import com.example.glucosetracker.ui.components.StatsCard
@@ -48,6 +49,7 @@ import com.example.glucosetracker.ui.theme.AppColors
 import com.example.glucosetracker.ui.theme.AppDimens
 import com.example.glucosetracker.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -61,6 +63,7 @@ fun HomeScreen(
 ) {
     val glucoseList by viewModel.glucoseList.collectAsState()
     val mealsList by viewModel.mealsList.collectAsState()
+    val injectionsList by viewModel.injectionsList.collectAsState()
     val sortedGlucose = glucoseList.sortedBy { it.timestamp }
     val currentEntry = sortedGlucose.lastOrNull()
     val currentGlucose = currentEntry?.glucoseLevel
@@ -104,14 +107,10 @@ fun HomeScreen(
         }
         item {
             TodayEventsCard(
-                events = mealsList.map { meal ->
-                    TodayEvent(
-                        title = meal.mealName,
-                        subtitle = "${meal.carbs} г углеводов",
-                        timestamp = meal.timestamp,
-                        type = TodayEventType.Meal
-                    )
-                },
+                events = todayEvents(
+                    mealsList = mealsList,
+                    injectionsList = injectionsList
+                ),
                 onAddClick = { isAddSheetVisible = true }
             )
         }
@@ -122,7 +121,8 @@ fun HomeScreen(
             sheetState = sheetState,
             onDismiss = { isAddSheetVisible = false },
             onAddGlucose = viewModel::addGlucose,
-            onAddMeal = viewModel::addMeal
+            onAddMeal = viewModel::addMeal,
+            onAddInjection = viewModel::addInjection
         )
     }
 }
@@ -208,11 +208,18 @@ private fun AddEventBottomSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onAddGlucose: (Float) -> Unit,
-    onAddMeal: (String, Int) -> Unit
+    onAddMeal: (String, Int) -> Unit,
+    onAddInjection: (Float, String, String, String) -> Unit
 ) {
+    val tabs = listOf("Глюкоза", "Еда", "Инсулин")
+    var selectedTab by remember { mutableStateOf(0) }
     var glucoseInput by remember { mutableStateOf("") }
     var mealName by remember { mutableStateOf("") }
     var carbsInput by remember { mutableStateOf("") }
+    var insulinUnitsInput by remember { mutableStateOf("") }
+    var insulinType by remember { mutableStateOf("") }
+    var injectionType by remember { mutableStateOf("Болюс") }
+    var notes by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -231,54 +238,241 @@ private fun AddEventBottomSheet(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
-            OutlinedTextField(
-                value = glucoseInput,
-                onValueChange = { glucoseInput = it },
-                label = { Text("Глюкоза, ммоль/л") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Button(
-                onClick = {
-                    glucoseInput.toFloatOrNull()?.let(onAddGlucose)
-                    glucoseInput = ""
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Сохранить глюкозу")
+                tabs.forEachIndexed { index, title ->
+                    SectionTab(
+                        title = title,
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = mealName,
-                onValueChange = { mealName = it },
-                label = { Text("Еда") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = carbsInput,
-                onValueChange = { carbsInput = it },
-                label = { Text("Углеводы, г") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Button(
-                onClick = {
-                    val carbs = carbsInput.toIntOrNull()
-                    if (mealName.isNotBlank() && carbs != null) {
-                        onAddMeal(mealName.trim(), carbs)
-                        mealName = ""
-                        carbsInput = ""
-                        onDismiss()
+
+            when (selectedTab) {
+                0 -> GlucoseSection(
+                    glucoseInput = glucoseInput,
+                    onGlucoseInputChange = { glucoseInput = it },
+                    onSave = {
+                        glucoseInput.toFloatOrNull()?.let { level ->
+                            onAddGlucose(level)
+                            glucoseInput = ""
+                            onDismiss()
+                        }
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Добавить прием пищи")
+                )
+
+                1 -> MealSection(
+                    mealName = mealName,
+                    onMealNameChange = { mealName = it },
+                    carbsInput = carbsInput,
+                    onCarbsInputChange = { carbsInput = it },
+                    onSave = {
+                        val carbs = carbsInput.toIntOrNull()
+                        if (mealName.isNotBlank() && carbs != null) {
+                            onAddMeal(mealName.trim(), carbs)
+                            mealName = ""
+                            carbsInput = ""
+                            onDismiss()
+                        }
+                    }
+                )
+
+                2 -> InjectionSection(
+                    insulinUnitsInput = insulinUnitsInput,
+                    onInsulinUnitsInputChange = { insulinUnitsInput = it },
+                    insulinType = insulinType,
+                    onInsulinTypeChange = { insulinType = it },
+                    injectionType = injectionType,
+                    onInjectionTypeChange = { injectionType = it },
+                    notes = notes,
+                    onNotesChange = { notes = it },
+                    onSave = {
+                        val units = insulinUnitsInput.toFloatOrNull()
+                        if (units != null && insulinType.isNotBlank()) {
+                            onAddInjection(
+                                units,
+                                insulinType.trim(),
+                                injectionType,
+                                notes.trim()
+                            )
+                            insulinUnitsInput = ""
+                            insulinType = ""
+                            injectionType = "Болюс"
+                            notes = ""
+                            onDismiss()
+                        }
+                    }
+                )
             }
         }
     }
+}
+
+@Composable
+private fun SectionTab(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) AppColors.BlueAccent else AppColors.BlueAccentSoft,
+            contentColor = if (selected) AppColors.Card else AppColors.BlueAccent
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Text(title)
+    }
+}
+
+@Composable
+private fun GlucoseSection(
+    glucoseInput: String,
+    onGlucoseInputChange: (String) -> Unit,
+    onSave: () -> Unit
+) {
+    OutlinedTextField(
+        value = glucoseInput,
+        onValueChange = onGlucoseInputChange,
+        label = { Text("Глюкоза, ммоль/л") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Button(
+        onClick = onSave,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Сохранить глюкозу")
+    }
+}
+
+@Composable
+private fun MealSection(
+    mealName: String,
+    onMealNameChange: (String) -> Unit,
+    carbsInput: String,
+    onCarbsInputChange: (String) -> Unit,
+    onSave: () -> Unit
+) {
+    OutlinedTextField(
+        value = mealName,
+        onValueChange = onMealNameChange,
+        label = { Text("Еда") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedTextField(
+        value = carbsInput,
+        onValueChange = onCarbsInputChange,
+        label = { Text("Углеводы, г") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Button(
+        onClick = onSave,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Добавить прием пищи")
+    }
+}
+
+@Composable
+private fun InjectionSection(
+    insulinUnitsInput: String,
+    onInsulinUnitsInputChange: (String) -> Unit,
+    insulinType: String,
+    onInsulinTypeChange: (String) -> Unit,
+    injectionType: String,
+    onInjectionTypeChange: (String) -> Unit,
+    notes: String,
+    onNotesChange: (String) -> Unit,
+    onSave: () -> Unit
+) {
+    OutlinedTextField(
+        value = insulinUnitsInput,
+        onValueChange = onInsulinUnitsInputChange,
+        label = { Text("Единицы инсулина") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedTextField(
+        value = insulinType,
+        onValueChange = onInsulinTypeChange,
+        label = { Text("Тип инсулина") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        listOf("Болюс", "База").forEach { type ->
+            SectionTab(
+                title = type,
+                selected = injectionType == type,
+                onClick = { onInjectionTypeChange(type) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+    OutlinedTextField(
+        value = notes,
+        onValueChange = onNotesChange,
+        label = { Text("Заметки") },
+        modifier = Modifier.fillMaxWidth()
+    )
+    Button(
+        onClick = onSave,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Добавить инъекцию")
+    }
+}
+
+private fun todayEvents(
+    mealsList: List<MealEntry>,
+    injectionsList: List<InjectionEntry>
+): List<TodayEvent> {
+    val startOfDay = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    val mealEvents = mealsList.filter { it.timestamp >= startOfDay }.map { meal ->
+        TodayEvent(
+            title = meal.mealName,
+            subtitle = "${meal.carbs} г углеводов",
+            timestamp = meal.timestamp,
+            type = TodayEventType.Meal
+        )
+    }
+    val injectionEvents = injectionsList.filter { it.timestamp >= startOfDay }.map { injection ->
+        TodayEvent(
+            title = "${injection.insulinUnits.formatUnits()} ед. • ${injection.injectionType}",
+            subtitle = listOf(injection.insulinType, injection.notes)
+                .filter { it.isNotBlank() }
+                .joinToString(" • "),
+            timestamp = injection.timestamp,
+            type = TodayEventType.Injection
+        )
+    }
+
+    return mealEvents + injectionEvents
+}
+
+private fun Float.formatUnits(): String = if (this % 1f == 0f) {
+    toInt().toString()
+} else {
+    "%.1f".format(this)
 }
 
 private fun glucoseStatusText(glucose: Float): String = when {
