@@ -161,7 +161,7 @@ private fun List<GlucoseEntry>.summarySince(since: Long): ReportSummary {
     if (entries.isEmpty()) {
         return ReportSummary(average = "--", timeInRange = "--", minMax = "--", count = "0")
     }
-    val values = entries.map { it.glucoseLevel }
+    val values = entries.map { it.glucoseMmolL }
     val average = values.average()
     val inRange = values.count { it in 3.9f..10f }
     val min = values.minOrNull() ?: 0f

@@ -48,8 +48,8 @@ fun HistoryScreen(
     val events = remember(glucoseList, mealsList, injectionsList) {
         val glucoseEvents = glucoseList.map { entry ->
             HistoryEvent(
-                title = "Глюкоза ${"%.1f".format(entry.glucoseLevel)} ммоль/л",
-                subtitle = glucoseStatus(entry.glucoseLevel),
+                title = "Глюкоза ${"%.1f".format(entry.glucoseMmolL)} ммоль/л",
+                subtitle = glucoseStatus(entry.glucoseMmolL),
                 timestamp = entry.timestamp,
                 marker = "🩸"
             )

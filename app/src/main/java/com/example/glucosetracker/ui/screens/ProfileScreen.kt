@@ -11,29 +11,56 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.example.glucosetracker.data.local.entities.DataSourceConfig
 import com.example.glucosetracker.ui.theme.AppColors
+import com.example.glucosetracker.viewmodel.HomeViewModel
+import com.example.glucosetracker.viewmodel.SyncStatus
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ProfileScreen(
+    viewModel: HomeViewModel,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues()
 ) {
-    var units by remember { mutableStateOf("ммоль/л") }
-    var dataSource by remember { mutableStateOf("Nightscout API") }
+    val config by viewModel.dataSourceConfig.collectAsState()
+    val syncState by viewModel.syncState.collectAsState()
+    var units by remember { mutableStateOf(DataSourceConfig.UNIT_MMOL_L) }
+    var dataSource by remember { mutableStateOf(DataSourceConfig.SOURCE_MANUAL) }
     var targetRange by remember { mutableStateOf("3.9–10.0") }
+    var baseUrl by remember { mutableStateOf("") }
+    var apiSecret by remember { mutableStateOf("") }
+    var autoSyncEnabled by remember { mutableStateOf(true) }
+
+    LaunchedEffect(config) {
+        dataSource = config.sourceType
+        units = config.sourceUnits
+        baseUrl = config.baseUrl
+        apiSecret = config.apiSecret
+        autoSyncEnabled = config.autoSyncEnabled
+    }
 
     LazyColumn(
         modifier = modifier
@@ -68,29 +95,98 @@ fun ProfileScreen(
             }
         }
         item {
-            SettingsCard(title = "Единицы измерения", subtitle = "Как отображать значения глюкозы") {
+            SettingsCard(title = "Единицы источника", subtitle = "В UI значения всегда отображаются в ммоль/л") {
                 ChipRow(
-                    options = listOf("ммоль/л", "mg/dL"),
+                    options = listOf(DataSourceConfig.UNIT_MMOL_L, DataSourceConfig.UNIT_MG_DL),
                     selected = units,
                     onSelected = { units = it }
                 )
             }
         }
         item {
-            SettingsCard(title = "Источник данных", subtitle = "CGM/API для синхронизации") {
-                ChipRow(
-                    options = listOf("Nightscout API", "Room demo", "CGM вручную"),
-                    selected = dataSource,
-                    onSelected = { dataSource = it }
-                )
+            SettingsCard(title = "Источник данных", subtitle = "Manual / Nightscout / другой API") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ChipRow(
+                        options = listOf(
+                            DataSourceConfig.SOURCE_MANUAL,
+                            DataSourceConfig.SOURCE_NIGHTSCOUT,
+                            DataSourceConfig.SOURCE_OTHER_API
+                        ),
+                        selected = dataSource,
+                        onSelected = { dataSource = it }
+                    )
+                    OutlinedTextField(
+                        value = baseUrl,
+                        onValueChange = { baseUrl = it },
+                        label = { Text("URL источника") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = dataSource != DataSourceConfig.SOURCE_MANUAL
+                    )
+                    OutlinedTextField(
+                        value = apiSecret,
+                        onValueChange = { apiSecret = it },
+                        label = { Text("Token / API secret") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = dataSource != DataSourceConfig.SOURCE_MANUAL,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Автообновление каждые 15 минут", color = AppColors.TextSecondary)
+                        Switch(checked = autoSyncEnabled, onCheckedChange = { autoSyncEnabled = it })
+                    }
+                    Button(
+                        onClick = {
+                            viewModel.saveDataSourceConfig(
+                                config.copy(
+                                    sourceType = dataSource,
+                                    baseUrl = baseUrl.trim(),
+                                    apiSecret = apiSecret.trim(),
+                                    sourceUnits = units,
+                                    autoSyncEnabled = autoSyncEnabled
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Сохранить источник")
+                    }
+                }
             }
         }
         item {
-            SettingsCard(title = "Текущее состояние", subtitle = "Временная state-модель профиля") {
+            SettingsCard(title = "Синхронизация", subtitle = "Ручной запуск и состояние последней попытки") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ProfileRow(label = "Цель", value = "$targetRange $units")
-                    ProfileRow(label = "Источник", value = dataSource)
-                    ProfileRow(label = "Синхронизация", value = "При запуске приложения")
+                    ProfileRow(label = "Статус", value = syncState.status.label())
+                    ProfileRow(
+                        label = "Последняя синхронизация",
+                        value = syncState.lastSyncAt?.let { formatDateTime(it) } ?: "—"
+                    )
+                    syncState.errorText?.let { error ->
+                        Text(text = error, color = AppColors.Danger, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Button(
+                        onClick = { viewModel.syncGlucose() },
+                        enabled = syncState.status != SyncStatus.Loading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (syncState.status == SyncStatus.Loading) "Синхронизация…" else "Синхронизировать")
+                    }
+                }
+            }
+        }
+        item {
+            SettingsCard(title = "Текущее состояние", subtitle = "Сохраненная конфигурация профиля") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ProfileRow(label = "Цель", value = "$targetRange ммоль/л")
+                    ProfileRow(label = "Источник", value = config.sourceType)
+                    ProfileRow(label = "Единицы источника", value = config.sourceUnits)
+                    ProfileRow(label = "URL", value = config.baseUrl.ifBlank { "—" })
                 }
             }
         }
@@ -156,4 +252,15 @@ private fun ProfileRow(label: String, value: String) {
         Text(text = label, color = AppColors.TextSecondary)
         Text(text = value, color = AppColors.TextDark, fontWeight = FontWeight.Bold)
     }
+}
+
+private fun SyncStatus.label(): String = when (this) {
+    SyncStatus.Idle -> "idle"
+    SyncStatus.Loading -> "loading"
+    SyncStatus.Success -> "success"
+    SyncStatus.Error -> "error"
+}
+
+private fun formatDateTime(timestamp: Long): String {
+    return SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
 }

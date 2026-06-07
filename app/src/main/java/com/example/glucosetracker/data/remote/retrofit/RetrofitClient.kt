@@ -9,9 +9,6 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    private const val BASE_URL =
-        "https://mycgm.fly.dev/"
-
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }
@@ -22,15 +19,18 @@ object RetrofitClient {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    val api: NightscoutApi by lazy {
-
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
+    fun nightscoutApi(baseUrl: String): NightscoutApi {
+        return Retrofit.Builder()
+            .baseUrl(baseUrl.normalizedBaseUrl())
             .client(client)
-            .addConverterFactory(
-                GsonConverterFactory.create()
-            )
+            .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(NightscoutApi::class.java)
+    }
+
+    private fun String.normalizedBaseUrl(): String {
+        val trimmed = trim()
+        require(trimmed.isNotBlank()) { "URL источника данных не задан" }
+        return if (trimmed.endsWith("/")) trimmed else "$trimmed/"
     }
 }

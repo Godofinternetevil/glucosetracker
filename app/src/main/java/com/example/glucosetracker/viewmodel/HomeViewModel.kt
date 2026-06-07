@@ -4,20 +4,35 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.glucosetracker.data.local.AppDatabase
+import com.example.glucosetracker.data.local.entities.DataSourceConfig
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.repository.GlucoseRepository
-import com.example.glucosetracker.data.repository.NightscoutRepository
+import com.example.glucosetracker.data.source.GlucoseDataSourceFactory
+import com.example.glucosetracker.sync.GlucoseSyncWorker
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class HomeViewModel(application: Application) : AndroidViewModel(application) {
+enum class SyncStatus {
+    Idle,
+    Loading,
+    Success,
+    Error
+}
 
-    init {
-        syncFromNightscout()
-    }
+data class SyncState(
+    val status: SyncStatus = SyncStatus.Idle,
+    val lastSyncAt: Long? = null,
+    val errorText: String? = null
+)
+
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dao = AppDatabase
         .getDatabase(application)
@@ -25,27 +40,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = GlucoseRepository(dao)
 
-    private val nightscoutRepository = NightscoutRepository()
+    private val dataSourceFactory = GlucoseDataSourceFactory()
 
-    fun syncFromNightscout() {
+    private val _syncState = MutableStateFlow(SyncState())
+    val syncState: StateFlow<SyncState> = _syncState
 
-        viewModelScope.launch {
-
-            try {
-
-                val remoteEntries =
-                    nightscoutRepository.fetchGlucoseData()
-
-                remoteEntries.forEach {
-
-                    repository.insertGlucose(it)
-                }
-
-            } catch (e: Exception) {
-
-                e.printStackTrace()
-            }
-        }
+    init {
+        GlucoseSyncWorker.schedule(application.applicationContext)
+        syncGlucose()
     }
 
     val glucoseList = repository.glucoseList
@@ -69,10 +71,65 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyList()
         )
 
+    val dataSourceConfig = repository.dataSourceConfig
+        .map { it ?: DataSourceConfig() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = DataSourceConfig()
+        )
+
+    fun syncFromNightscout() {
+        syncGlucose()
+    }
+
+    fun syncGlucose() {
+        viewModelScope.launch {
+            val config = repository.getDataSourceConfig()
+            if (config.sourceType == DataSourceConfig.SOURCE_MANUAL) {
+                _syncState.update {
+                    it.copy(
+                        status = SyncStatus.Idle,
+                        lastSyncAt = config.lastSyncAt,
+                        errorText = null
+                    )
+                }
+                return@launch
+            }
+
+            _syncState.value = SyncState(status = SyncStatus.Loading, lastSyncAt = config.lastSyncAt)
+
+            try {
+                val remoteEntries = dataSourceFactory.create(config).fetchEntries(config)
+                repository.insertGlucoseEntries(remoteEntries)
+                val syncedAt = System.currentTimeMillis()
+                repository.saveDataSourceConfig(config.copy(lastSyncAt = syncedAt))
+                _syncState.value = SyncState(status = SyncStatus.Success, lastSyncAt = syncedAt)
+            } catch (e: Exception) {
+                _syncState.value = SyncState(
+                    status = SyncStatus.Error,
+                    lastSyncAt = config.lastSyncAt,
+                    errorText = e.message ?: "Не удалось синхронизировать данные"
+                )
+            }
+        }
+    }
+
+    fun saveDataSourceConfig(config: DataSourceConfig) {
+        viewModelScope.launch {
+            repository.saveDataSourceConfig(config)
+            GlucoseSyncWorker.schedule(getApplication<Application>().applicationContext)
+        }
+    }
+
     fun addGlucose(level: Float) {
         viewModelScope.launch {
             repository.insertGlucose(
-                GlucoseEntry(glucoseLevel = level)
+                GlucoseEntry(
+                    glucoseMmolL = level,
+                    glucoseMgDl = level * 18.0182f,
+                    source = DataSourceConfig.SOURCE_MANUAL
+                )
             )
         }
     }

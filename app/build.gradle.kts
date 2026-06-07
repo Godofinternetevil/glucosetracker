@@ -65,4 +65,7 @@ dependencies {
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     // Lifecycle
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
+
+    // WorkManager
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 }

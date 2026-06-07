@@ -77,7 +77,7 @@ fun AppNavGraph(modifier: Modifier = Modifier) {
                 ReportsScreen(viewModel = homeViewModel, contentPadding = innerPadding)
             }
             composable(AppRoute.Profile) {
-                ProfileScreen(contentPadding = innerPadding)
+                ProfileScreen(viewModel = homeViewModel, contentPadding = innerPadding)
             }
         }
     }

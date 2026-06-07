@@ -48,6 +48,8 @@ import com.example.glucosetracker.ui.components.TodayEventsCard
 import com.example.glucosetracker.ui.theme.AppColors
 import com.example.glucosetracker.ui.theme.AppDimens
 import com.example.glucosetracker.viewmodel.HomeViewModel
+import com.example.glucosetracker.viewmodel.SyncState
+import com.example.glucosetracker.viewmodel.SyncStatus
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -64,9 +66,10 @@ fun HomeScreen(
     val glucoseList by viewModel.glucoseList.collectAsState()
     val mealsList by viewModel.mealsList.collectAsState()
     val injectionsList by viewModel.injectionsList.collectAsState()
+    val syncState by viewModel.syncState.collectAsState()
     val sortedGlucose = glucoseList.sortedBy { it.timestamp }
     val currentEntry = sortedGlucose.lastOrNull()
-    val currentGlucose = currentEntry?.glucoseLevel
+    val currentGlucose = currentEntry?.glucoseMmolL
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isAddSheetVisible by remember { mutableStateOf(false) }
     var selectedRange by remember { mutableStateOf(6) }
@@ -84,6 +87,7 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item { TopBar() }
+        item { SyncStatusCard(syncState = syncState, onSyncClick = viewModel::syncGlucose) }
         item {
             CurrentGlucoseCard(
                 glucose = currentGlucose,
@@ -125,6 +129,51 @@ fun HomeScreen(
             onAddInjection = viewModel::addInjection
         )
     }
+}
+
+@Composable
+private fun SyncStatusCard(syncState: SyncState, onSyncClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.Card),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Синхронизация: ${syncState.status.homeLabel()}",
+                    color = AppColors.TextDark,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = syncState.errorText ?: syncState.lastSyncAt?.let { "Последняя: ${formatTime(it)}" } ?: "Еще не выполнялась",
+                    color = if (syncState.status == SyncStatus.Error) AppColors.Danger else AppColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Button(
+                onClick = onSyncClick,
+                enabled = syncState.status != SyncStatus.Loading
+            ) {
+                Text(if (syncState.status == SyncStatus.Loading) "…" else "Синхронизировать")
+            }
+        }
+    }
+}
+
+private fun SyncStatus.homeLabel(): String = when (this) {
+    SyncStatus.Idle -> "idle"
+    SyncStatus.Loading -> "loading"
+    SyncStatus.Success -> "success"
+    SyncStatus.Error -> "error"
 }
 
 @Composable
@@ -485,18 +534,18 @@ private fun formatTime(timestamp: Long): String = SimpleDateFormat("HH:mm", Loca
 
 private fun averageGlucoseText(glucoseList: List<GlucoseEntry>): String {
     if (glucoseList.isEmpty()) return "--"
-    return "%.1f".format(glucoseList.map { it.glucoseLevel }.average())
+    return "%.1f".format(glucoseList.map { it.glucoseMmolL }.average())
 }
 
 private fun timeInRangeText(glucoseList: List<GlucoseEntry>): String {
     if (glucoseList.isEmpty()) return "--"
-    val inRangeCount = glucoseList.count { it.glucoseLevel in 3.9f..10f }
+    val inRangeCount = glucoseList.count { it.glucoseMmolL in 3.9f..10f }
     return "${((inRangeCount.toFloat() / glucoseList.size) * 100).roundToInt()}%"
 }
 
 private fun gmiEstimateText(glucoseList: List<GlucoseEntry>): String {
     if (glucoseList.isEmpty()) return "--"
-    val averageMgDl = glucoseList.map { it.glucoseLevel }.average() * 18.0182
+    val averageMgDl = glucoseList.map { it.glucoseMmolL }.average() * 18.0182
     val gmi = 3.31 + (0.02392 * averageMgDl)
     return "%.1f%%".format(gmi)
 }

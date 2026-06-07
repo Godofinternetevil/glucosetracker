@@ -214,7 +214,7 @@ private fun GlucoseChartCanvas(
             )
         } else {
             val points = glucoseList.map { entry ->
-                Offset(xFor(entry.timestamp), yFor(entry.glucoseLevel))
+                Offset(xFor(entry.timestamp), yFor(entry.glucoseMmolL))
             }
             val path = Path().apply {
                 moveTo(points.first().x, points.first().y)

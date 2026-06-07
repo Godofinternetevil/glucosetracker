@@ -1,15 +1,10 @@
 package com.example.glucosetracker.data.repository
 
-import com.example.glucosetracker.data.remote.mapper.toEntity
-import com.example.glucosetracker.data.remote.retrofit.RetrofitClient
+import com.example.glucosetracker.data.local.entities.DataSourceConfig
+import com.example.glucosetracker.data.source.NightscoutGlucoseDataSource
 
-class NightscoutRepository {
-
-    suspend fun fetchGlucoseData() =
-
-        RetrofitClient.api
-            .getGlucoseEntries()
-            .map { dto ->
-                dto.toEntity()
-            }
+class NightscoutRepository(
+    private val dataSource: NightscoutGlucoseDataSource = NightscoutGlucoseDataSource()
+) {
+    suspend fun fetchGlucoseData(config: DataSourceConfig) = dataSource.fetchEntries(config)
 }
