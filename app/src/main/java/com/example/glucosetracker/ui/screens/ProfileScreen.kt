@@ -47,18 +47,29 @@ fun ProfileScreen(
 ) {
     val config by viewModel.dataSourceConfig.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
+    val configError by viewModel.configError.collectAsState()
+
     var units by remember { mutableStateOf(DataSourceConfig.UNIT_MMOL_L) }
     var dataSource by remember { mutableStateOf(DataSourceConfig.SOURCE_MANUAL) }
     var targetRange by remember { mutableStateOf("3.9–10.0") }
-    var baseUrl by remember { mutableStateOf("") }
-    var apiSecret by remember { mutableStateOf("") }
+    var nightscoutBaseUrl by remember { mutableStateOf("") }
+    var nightscoutToken by remember { mutableStateOf("") }
+    var xDripBaseUrl by remember { mutableStateOf("") }
+    var xDripToken by remember { mutableStateOf("") }
+    var otherApiBaseUrl by remember { mutableStateOf("") }
+    var otherApiToken by remember { mutableStateOf("") }
     var autoSyncEnabled by remember { mutableStateOf(true) }
 
     LaunchedEffect(config) {
-        dataSource = config.sourceType
         units = config.sourceUnits
-        baseUrl = config.baseUrl
-        apiSecret = config.apiSecret
+        dataSource = config.sourceType.ifBlank { DataSourceConfig.SOURCE_MANUAL }
+        targetRange = targetRange.ifBlank { "3.9–10.0" }
+        nightscoutBaseUrl = config.nightscoutBaseUrl.ifBlank { config.baseUrl }
+        nightscoutToken = config.nightscoutToken.ifBlank { config.apiSecret }
+        xDripBaseUrl = config.xDripBaseUrl
+        xDripToken = config.xDripToken
+        otherApiBaseUrl = config.otherApiBaseUrl
+        otherApiToken = config.otherApiToken
         autoSyncEnabled = config.autoSyncEnabled
     }
 
@@ -104,57 +115,68 @@ fun ProfileScreen(
             }
         }
         item {
-            SettingsCard(title = "Источник данных", subtitle = "Manual / Nightscout / другой API") {
+            SettingsCard(title = "Режим подключения", subtitle = "Manual, Nightscout, xDrip bridge или Other API") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ChipRow(
                         options = listOf(
                             DataSourceConfig.SOURCE_MANUAL,
                             DataSourceConfig.SOURCE_NIGHTSCOUT,
+                            DataSourceConfig.SOURCE_XDRIP_BRIDGE,
                             DataSourceConfig.SOURCE_OTHER_API
                         ),
                         selected = dataSource,
                         onSelected = { dataSource = it }
                     )
-                    OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        label = { Text("URL источника") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = dataSource != DataSourceConfig.SOURCE_MANUAL
-                    )
-                    OutlinedTextField(
-                        value = apiSecret,
-                        onValueChange = { apiSecret = it },
-                        label = { Text("Token / API secret") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = dataSource != DataSourceConfig.SOURCE_MANUAL,
-                        visualTransformation = PasswordVisualTransformation()
+
+                    when (dataSource) {
+                        DataSourceConfig.SOURCE_NIGHTSCOUT -> SourceSettingsFields(
+                            label = "Nightscout",
+                            url = nightscoutBaseUrl,
+                            token = nightscoutToken,
+                            onUrlChange = { nightscoutBaseUrl = it },
+                            onTokenChange = { nightscoutToken = it }
+                        )
+
+                        DataSourceConfig.SOURCE_XDRIP_BRIDGE -> SourceSettingsFields(
+                            label = "xDrip bridge",
+                            url = xDripBaseUrl,
+                            token = xDripToken,
+                            onUrlChange = { xDripBaseUrl = it },
+                            onTokenChange = { xDripToken = it }
+                        )
+
+                        DataSourceConfig.SOURCE_OTHER_API -> SourceSettingsFields(
+                            label = "Other API",
+                            url = otherApiBaseUrl,
+                            token = otherApiToken,
+                            onUrlChange = { otherApiBaseUrl = it },
+                            onTokenChange = { otherApiToken = it }
+                        )
+
+                        else -> Text(
+                            text = "Manual режим не требует URL и токена. Используйте его для локального ввода значений.",
+                            color = AppColors.TextSecondary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    Text(
+                        text = "URL должен начинаться с http:// или https://, а токен нужен для удаленной синхронизации.",
+                        color = AppColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "Автообновление каждые 15 минут", color = AppColors.TextSecondary)
+                        Text(
+                            text = "Автосинхронизация",
+                            color = AppColors.TextDark,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
                         Switch(checked = autoSyncEnabled, onCheckedChange = { autoSyncEnabled = it })
-                    }
-                    Button(
-                        onClick = {
-                            viewModel.saveDataSourceConfig(
-                                config.copy(
-                                    sourceType = dataSource,
-                                    baseUrl = baseUrl.trim(),
-                                    apiSecret = apiSecret.trim(),
-                                    sourceUnits = units,
-                                    autoSyncEnabled = autoSyncEnabled
-                                )
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Сохранить источник")
                     }
                 }
             }
@@ -171,11 +193,35 @@ fun ProfileScreen(
                         Text(text = error, color = AppColors.Danger, style = MaterialTheme.typography.bodyMedium)
                     }
                     Button(
-                        onClick = { viewModel.syncGlucose() },
+                        onClick = {
+                            viewModel.saveDataSourceConfig(
+                                config.copy(
+                                    sourceType = dataSource,
+                                    sourceUnits = units,
+                                    autoSyncEnabled = autoSyncEnabled,
+                                    nightscoutBaseUrl = nightscoutBaseUrl.trim(),
+                                    nightscoutToken = nightscoutToken.trim(),
+                                    xDripBaseUrl = xDripBaseUrl.trim(),
+                                    xDripToken = xDripToken.trim(),
+                                    otherApiBaseUrl = otherApiBaseUrl.trim(),
+                                    otherApiToken = otherApiToken.trim()
+                                )
+                            )
+                        },
                         enabled = syncState.status != SyncStatus.Loading,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (syncState.status == SyncStatus.Loading) "Синхронизация…" else "Синхронизировать")
+                        Text("Сохранить источник")
+                    }
+                    Button(
+                        onClick = { viewModel.syncGlucose(force = true) },
+                        enabled = syncState.status != SyncStatus.Loading && dataSource != DataSourceConfig.SOURCE_MANUAL,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Синхронизировать сейчас")
+                    }
+                    configError?.let { error ->
+                        Text(text = error, color = AppColors.Danger, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -185,11 +231,47 @@ fun ProfileScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ProfileRow(label = "Цель", value = "$targetRange ммоль/л")
                     ProfileRow(label = "Источник", value = config.sourceType)
+                    ProfileRow(label = "Режим", value = config.connectionMode.ifBlank { dataSource })
                     ProfileRow(label = "Единицы источника", value = config.sourceUnits)
-                    ProfileRow(label = "URL", value = config.baseUrl.ifBlank { "—" })
+                    ProfileRow(label = "URL", value = config.activeBaseUrl().ifBlank { "—" })
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SourceSettingsFields(
+    label: String,
+    url: String,
+    token: String,
+    onUrlChange: (String) -> Unit,
+    onTokenChange: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = "$label connection",
+            color = AppColors.TextDark,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        OutlinedTextField(
+            value = url,
+            onValueChange = onUrlChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("URL") },
+            placeholder = { Text("https://example.com") },
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = token,
+            onValueChange = onTokenChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Token / API secret") },
+            placeholder = { Text("••••••••••••") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation()
+        )
     }
 }
 

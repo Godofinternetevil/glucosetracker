@@ -18,7 +18,7 @@ import com.example.glucosetracker.data.local.entities.MealEntry
         InjectionEntry::class,
         DataSourceConfig::class
     ],
-    version = 3
+    version = 4
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -107,6 +107,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `data_source_config` ADD COLUMN `nightscoutBaseUrl` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `data_source_config` ADD COLUMN `nightscoutToken` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `data_source_config` ADD COLUMN `xDripBaseUrl` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `data_source_config` ADD COLUMN `xDripToken` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `data_source_config` ADD COLUMN `otherApiBaseUrl` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `data_source_config` ADD COLUMN `otherApiToken` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `data_source_config` ADD COLUMN `connectionMode` TEXT NOT NULL DEFAULT 'manual'")
+                db.execSQL(
+                    """
+                    UPDATE `data_source_config`
+                    SET
+                        `nightscoutBaseUrl` = CASE WHEN `nightscoutBaseUrl` = '' THEN `baseUrl` ELSE `nightscoutBaseUrl` END,
+                        `nightscoutToken` = CASE WHEN `nightscoutToken` = '' THEN `apiSecret` ELSE `nightscoutToken` END,
+                        `connectionMode` = CASE
+                            WHEN `sourceType` = 'Nightscout' THEN 'nightscout'
+                            WHEN `sourceType` = 'xDrip bridge' THEN 'xdrip_bridge'
+                            WHEN `sourceType` = 'Other API' THEN 'other_api'
+                            ELSE 'manual'
+                        END
+                    WHERE `id` = 0
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -114,7 +141,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "glucose_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
 
                 INSTANCE = instance

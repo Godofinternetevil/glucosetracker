@@ -10,7 +10,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.example.glucosetracker.data.local.AppDatabase
 import com.example.glucosetracker.data.local.entities.DataSourceConfig
-import com.example.glucosetracker.data.source.GlucoseDataSourceFactory
 import java.util.concurrent.TimeUnit
 
 class GlucoseSyncWorker(
@@ -21,17 +20,16 @@ class GlucoseSyncWorker(
     override suspend fun doWork(): Result {
         val dao = AppDatabase.getDatabase(applicationContext).glucoseDao()
         val config = dao.getDataSourceConfig() ?: DataSourceConfig()
-        if (!config.autoSyncEnabled || config.sourceType != DataSourceConfig.SOURCE_NIGHTSCOUT) {
+        if (!config.autoSyncEnabled || config.sourceType == DataSourceConfig.SOURCE_MANUAL) {
             return Result.success()
         }
 
-        return try {
-            val entries = GlucoseDataSourceFactory().create(config).fetchEntries(config)
-            dao.insertGlucoseEntries(entries)
-            dao.saveDataSourceConfig(config.copy(lastSyncAt = System.currentTimeMillis()))
-            Result.success()
-        } catch (e: Exception) {
-            Result.retry()
+        val syncResult = GlucoseSyncCoordinator(dao).sync(config)
+        return when (syncResult) {
+            is GlucoseSyncResult.Success,
+            is GlucoseSyncResult.Skipped -> Result.success()
+            is GlucoseSyncResult.ValidationError -> Result.success()
+            is GlucoseSyncResult.Failure -> Result.retry()
         }
     }
 

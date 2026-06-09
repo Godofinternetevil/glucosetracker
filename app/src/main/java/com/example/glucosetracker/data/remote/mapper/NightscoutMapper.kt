@@ -8,12 +8,12 @@ import com.google.gson.Gson
 private const val MG_DL_TO_MMOL_L = 18.0182f
 private val gson = Gson()
 
-fun NightscoutEntryDto.toEntity(): GlucoseEntry {
+fun NightscoutEntryDto.toEntity(sourceType: String = DataSourceConfig.SOURCE_NIGHTSCOUT): GlucoseEntry {
     val glucoseMgDl = glucose.toFloat()
     return GlucoseEntry(
         glucoseMmolL = glucoseMgDl / MG_DL_TO_MMOL_L,
         glucoseMgDl = glucoseMgDl,
-        source = DataSourceConfig.SOURCE_NIGHTSCOUT,
+        source = sourceType,
         sourceId = id ?: timestamp.toString(),
         trendDirection = direction,
         rawPayload = gson.toJson(this),

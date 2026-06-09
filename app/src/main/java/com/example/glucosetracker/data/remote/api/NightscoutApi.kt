@@ -11,6 +11,7 @@ interface NightscoutApi {
     suspend fun getGlucoseEntries(
         @Query("count") count: Int = 24,
         @Query("token") token: String? = null,
-        @Header("api-secret") apiSecret: String? = null
+        @Header("api-secret") apiSecret: String? = null,
+        @Query("find[dateString][\$gte]") sinceDateString: String? = null
     ): List<NightscoutEntryDto>
 }

@@ -9,7 +9,8 @@ import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.repository.GlucoseRepository
-import com.example.glucosetracker.data.source.GlucoseDataSourceFactory
+import com.example.glucosetracker.sync.GlucoseSyncCoordinator
+import com.example.glucosetracker.sync.GlucoseSyncResult
 import com.example.glucosetracker.sync.GlucoseSyncWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,10 +41,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = GlucoseRepository(dao)
 
-    private val dataSourceFactory = GlucoseDataSourceFactory()
+    private val syncCoordinator = GlucoseSyncCoordinator(dao)
 
     private val _syncState = MutableStateFlow(SyncState())
     val syncState: StateFlow<SyncState> = _syncState
+
+    private val _configError = MutableStateFlow<String?>(null)
+    val configError: StateFlow<String?> = _configError
 
     init {
         GlucoseSyncWorker.schedule(application.applicationContext)
@@ -79,11 +83,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = DataSourceConfig()
         )
 
-    fun syncFromNightscout() {
-        syncGlucose()
+    fun syncFromSource(force: Boolean = false) {
+        syncGlucose(force)
     }
 
-    fun syncGlucose() {
+    fun syncFromNightscout(force: Boolean = false) {
+        syncGlucose(force)
+    }
+
+    fun syncGlucose(force: Boolean = false) {
         viewModelScope.launch {
             val config = repository.getDataSourceConfig()
             if (config.sourceType == DataSourceConfig.SOURCE_MANUAL) {
@@ -97,27 +105,73 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
+            if (!force && !config.autoSyncEnabled) {
+                _syncState.update {
+                    it.copy(
+                        status = SyncStatus.Idle,
+                        lastSyncAt = config.lastSyncAt,
+                        errorText = null
+                    )
+                }
+                return@launch
+            }
+
             _syncState.value = SyncState(status = SyncStatus.Loading, lastSyncAt = config.lastSyncAt)
 
-            try {
-                val remoteEntries = dataSourceFactory.create(config).fetchEntries(config)
-                repository.insertGlucoseEntries(remoteEntries)
-                val syncedAt = System.currentTimeMillis()
-                repository.saveDataSourceConfig(config.copy(lastSyncAt = syncedAt))
-                _syncState.value = SyncState(status = SyncStatus.Success, lastSyncAt = syncedAt)
-            } catch (e: Exception) {
-                _syncState.value = SyncState(
-                    status = SyncStatus.Error,
-                    lastSyncAt = config.lastSyncAt,
-                    errorText = e.message ?: "Не удалось синхронизировать данные"
-                )
+            when (val result = syncCoordinator.sync(config, force)) {
+                is GlucoseSyncResult.Success -> {
+                    _syncState.value = SyncState(
+                        status = SyncStatus.Success,
+                        lastSyncAt = result.syncedAt,
+                        errorText = null
+                    )
+                }
+
+                is GlucoseSyncResult.Skipped -> {
+                    _syncState.value = SyncState(
+                        status = SyncStatus.Idle,
+                        lastSyncAt = config.lastSyncAt,
+                        errorText = null
+                    )
+                }
+
+                is GlucoseSyncResult.ValidationError -> {
+                    _syncState.value = SyncState(
+                        status = SyncStatus.Error,
+                        lastSyncAt = config.lastSyncAt,
+                        errorText = result.message
+                    )
+                }
+
+                is GlucoseSyncResult.Failure -> {
+                    _syncState.value = SyncState(
+                        status = SyncStatus.Error,
+                        lastSyncAt = config.lastSyncAt,
+                        errorText = result.message
+                    )
+                }
             }
         }
     }
 
     fun saveDataSourceConfig(config: DataSourceConfig) {
         viewModelScope.launch {
-            repository.saveDataSourceConfig(config)
+            val normalized = config.normalizedForStorage()
+            val validationErrors = normalized.validationErrors()
+            if (validationErrors.isNotEmpty()) {
+                _configError.value = validationErrors.joinToString("\n")
+                _syncState.update {
+                    it.copy(
+                        status = SyncStatus.Error,
+                        errorText = validationErrors.firstOrNull()
+                    )
+                }
+                return@launch
+            }
+
+            repository.saveDataSourceConfig(normalized)
+            _configError.value = null
+            _syncState.update { it.copy(status = SyncStatus.Idle, errorText = null) }
             GlucoseSyncWorker.schedule(getApplication<Application>().applicationContext)
         }
     }
