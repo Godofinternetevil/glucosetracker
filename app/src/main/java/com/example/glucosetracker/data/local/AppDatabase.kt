@@ -9,6 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.glucosetracker.data.local.entities.DataSourceConfig
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.InjectionEntry
+import com.example.glucosetracker.data.local.entities.InsulinEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 
 @Database(
@@ -16,9 +17,10 @@ import com.example.glucosetracker.data.local.entities.MealEntry
         GlucoseEntry::class,
         MealEntry::class,
         InjectionEntry::class,
+        InsulinEntry::class,
         DataSourceConfig::class
     ],
-    version = 4
+    version = 5
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -134,6 +136,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `insulin_entries` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        `insulinType` TEXT NOT NULL,
+                        `units` REAL NOT NULL,
+                        `note` TEXT NOT NULL,
+                        `source` TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -141,7 +160,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "glucose_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
 
                 INSTANCE = instance

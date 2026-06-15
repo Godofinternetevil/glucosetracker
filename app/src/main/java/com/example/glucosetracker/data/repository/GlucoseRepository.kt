@@ -4,6 +4,7 @@ import com.example.glucosetracker.data.local.GlucoseDao
 import com.example.glucosetracker.data.local.entities.DataSourceConfig
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.InjectionEntry
+import com.example.glucosetracker.data.local.entities.InsulinEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 
 class GlucoseRepository(
@@ -15,6 +16,8 @@ class GlucoseRepository(
     val mealsList = dao.getAllMeals()
 
     val injectionsList = dao.getAllInjections()
+
+    val insulinList = dao.getAllInsulin()
 
     val dataSourceConfig = dao.observeDataSourceConfig()
 
@@ -33,6 +36,12 @@ class GlucoseRepository(
     suspend fun insertInjection(entry: InjectionEntry) {
         dao.insertInjection(entry)
     }
+
+    suspend fun insertInsulin(entry: InsulinEntry) {
+        dao.insertInsulin(entry)
+    }
+
+    fun getInsulinBetween(start: Long, end: Long) = dao.getInsulinBetween(start, end)
 
     suspend fun getDataSourceConfig(): DataSourceConfig {
         return dao.getDataSourceConfig() ?: DataSourceConfig()

@@ -7,6 +7,7 @@ import com.example.glucosetracker.data.local.AppDatabase
 import com.example.glucosetracker.data.local.entities.DataSourceConfig
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.InjectionEntry
+import com.example.glucosetracker.data.local.entities.InsulinEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.repository.GlucoseRepository
 import com.example.glucosetracker.sync.GlucoseSyncCoordinator
@@ -69,6 +70,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         )
 
     val injectionsList = repository.injectionsList
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val insulinList = repository.insulinList
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -212,6 +220,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     insulinType = insulinType,
                     injectionType = injectionType,
                     notes = notes
+                )
+            )
+        }
+    }
+
+    fun addInsulin(
+        units: Float,
+        insulinType: String,
+        note: String,
+        source: String = DataSourceConfig.SOURCE_MANUAL
+    ) {
+        viewModelScope.launch {
+            repository.insertInsulin(
+                InsulinEntry(
+                    units = units,
+                    insulinType = insulinType,
+                    note = note,
+                    source = source
                 )
             )
         }

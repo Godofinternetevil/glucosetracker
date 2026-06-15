@@ -45,7 +45,8 @@ fun HistoryScreen(
     val glucoseList by viewModel.glucoseList.collectAsState()
     val mealsList by viewModel.mealsList.collectAsState()
     val injectionsList by viewModel.injectionsList.collectAsState()
-    val events = remember(glucoseList, mealsList, injectionsList) {
+    val insulinList by viewModel.insulinList.collectAsState()
+    val events = remember(glucoseList, mealsList, injectionsList, insulinList) {
         val glucoseEvents = glucoseList.map { entry ->
             HistoryEvent(
                 title = "Глюкоза ${"%.1f".format(entry.glucoseMmolL)} ммоль/л",
@@ -72,7 +73,17 @@ fun HistoryScreen(
                 marker = "💉"
             )
         }
-        (glucoseEvents + mealEvents + injectionEvents).sortedByDescending { it.timestamp }
+        val insulinEvents = insulinList.map { insulin ->
+            HistoryEvent(
+                title = "Инсулин ${insulin.units.formatUnits()} ед.",
+                subtitle = listOf(insulin.insulinType.insulinTypeLabel(), insulin.source, insulin.note)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" • "),
+                timestamp = insulin.timestamp,
+                marker = "💉"
+            )
+        }
+        (glucoseEvents + mealEvents + injectionEvents + insulinEvents).sortedByDescending { it.timestamp }
     }
 
     LazyColumn(
@@ -191,6 +202,15 @@ private fun glucoseStatus(glucose: Float): String = when {
 
 private fun formatHistoryTime(timestamp: Long): String =
     SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+private fun String.insulinTypeLabel(): String = when (this) {
+    "rapid" -> "Быстрый"
+    "short" -> "Короткий"
+    "long" -> "Длинный"
+    "basal" -> "Базальный"
+    "correction" -> "Коррекция"
+    else -> this
+}
 
 private fun Float.formatUnits(): String = if (this % 1f == 0f) {
     toInt().toString()
