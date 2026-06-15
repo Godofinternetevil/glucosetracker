@@ -261,7 +261,7 @@ private fun AddEventBottomSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onAddGlucose: (Float) -> Unit,
-    onAddMeal: (String, Int) -> Unit,
+    onAddMeal: (String, Float, Float?, Float?, Int?, String, String, String) -> Unit,
     onAddInsulin: (Float, String, String, String) -> Unit
 ) {
     val tabs = listOf("Глюкоза", "Еда", "Инсулин")
@@ -269,6 +269,11 @@ private fun AddEventBottomSheet(
     var glucoseInput by remember { mutableStateOf("") }
     var mealName by remember { mutableStateOf("") }
     var carbsInput by remember { mutableStateOf("") }
+    var proteinInput by remember { mutableStateOf("") }
+    var fatInput by remember { mutableStateOf("") }
+    var caloriesInput by remember { mutableStateOf("") }
+    var mealType by remember { mutableStateOf(MealEntry.TYPE_SNACK) }
+    var mealNote by remember { mutableStateOf("") }
     var insulinUnitsInput by remember { mutableStateOf("") }
     var insulinType by remember { mutableStateOf(InsulinEntry.TYPE_RAPID) }
     var notes by remember { mutableStateOf("") }
@@ -322,12 +327,39 @@ private fun AddEventBottomSheet(
                     onMealNameChange = { mealName = it },
                     carbsInput = carbsInput,
                     onCarbsInputChange = { carbsInput = it },
+                    proteinInput = proteinInput,
+                    onProteinInputChange = { proteinInput = it },
+                    fatInput = fatInput,
+                    onFatInputChange = { fatInput = it },
+                    caloriesInput = caloriesInput,
+                    onCaloriesInputChange = { caloriesInput = it },
+                    mealType = mealType,
+                    onMealTypeChange = { mealType = it },
+                    note = mealNote,
+                    onNoteChange = { mealNote = it },
                     onSave = {
-                        val carbs = carbsInput.toIntOrNull()
+                        val carbs = carbsInput.toFloatOrNull()
+                        val protein = proteinInput.toFloatOrNull()
+                        val fat = fatInput.toFloatOrNull()
+                        val calories = caloriesInput.toIntOrNull()
                         if (mealName.isNotBlank() && carbs != null) {
-                            onAddMeal(mealName.trim(), carbs)
+                            onAddMeal(
+                                mealName.trim(),
+                                carbs,
+                                protein,
+                                fat,
+                                calories,
+                                mealType,
+                                mealNote.trim(),
+                                DataSourceConfig.SOURCE_MANUAL
+                            )
                             mealName = ""
                             carbsInput = ""
+                            proteinInput = ""
+                            fatInput = ""
+                            caloriesInput = ""
+                            mealType = MealEntry.TYPE_SNACK
+                            mealNote = ""
                             onDismiss()
                         }
                     }
@@ -408,6 +440,16 @@ private fun MealSection(
     onMealNameChange: (String) -> Unit,
     carbsInput: String,
     onCarbsInputChange: (String) -> Unit,
+    proteinInput: String,
+    onProteinInputChange: (String) -> Unit,
+    fatInput: String,
+    onFatInputChange: (String) -> Unit,
+    caloriesInput: String,
+    onCaloriesInputChange: (String) -> Unit,
+    mealType: String,
+    onMealTypeChange: (String) -> Unit,
+    note: String,
+    onNoteChange: (String) -> Unit,
     onSave: () -> Unit
 ) {
     OutlinedTextField(
@@ -422,6 +464,67 @@ private fun MealSection(
         onValueChange = onCarbsInputChange,
         label = { Text("Углеводы, г") },
         singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Text(
+        text = "Тип приема пищи",
+        color = AppColors.TextSecondary,
+        style = MaterialTheme.typography.bodySmall
+    )
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        MealEntry.SUPPORTED_TYPES.take(2).forEach { type ->
+            SectionTab(
+                title = type.mealTypeLabel(),
+                selected = mealType == type,
+                onClick = { onMealTypeChange(type) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        MealEntry.SUPPORTED_TYPES.drop(2).forEach { type ->
+            SectionTab(
+                title = type.mealTypeLabel(),
+                selected = mealType == type,
+                onClick = { onMealTypeChange(type) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+    OutlinedTextField(
+        value = carbsInput,
+        onValueChange = onCarbsInputChange,
+        label = { Text("Углеводы, г") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = proteinInput,
+            onValueChange = onProteinInputChange,
+            label = { Text("Белки, г") },
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
+        OutlinedTextField(
+            value = fatInput,
+            onValueChange = onFatInputChange,
+            label = { Text("Жиры, г") },
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
+    }
+    OutlinedTextField(
+        value = caloriesInput,
+        onValueChange = onCaloriesInputChange,
+        label = { Text("Калории") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedTextField(
+        value = note,
+        onValueChange = onNoteChange,
+        label = { Text("Заметка") },
         modifier = Modifier.fillMaxWidth()
     )
     Button(
@@ -509,7 +612,7 @@ private fun todayEvents(
     val mealEvents = mealsList.filter { it.timestamp >= startOfDay }.map { meal ->
         TodayEvent(
             title = meal.mealName,
-            subtitle = "${meal.carbs} г углеводов",
+            subtitle = meal.nutritionSummary(),
             timestamp = meal.timestamp,
             type = TodayEventType.Meal
         )
@@ -581,3 +684,27 @@ private fun gmiEstimateText(glucoseList: List<GlucoseEntry>): String {
 }
 
 private fun Int.hoursInMillis(): Long = this * 60L * 60L * 1000L
+
+private fun String.mealTypeLabel(): String = when (this) {
+    MealEntry.TYPE_BREAKFAST -> "Завтрак"
+    MealEntry.TYPE_LUNCH -> "Обед"
+    MealEntry.TYPE_DINNER -> "Ужин"
+    MealEntry.TYPE_SNACK -> "Перекус"
+    else -> this
+}
+
+private fun MealEntry.nutritionSummary(): String = listOfNotNull(
+    mealType.mealTypeLabel(),
+    "${carbsGrams.formatGrams()} г углеводов",
+    proteinGrams?.let { "${it.formatGrams()} г белков" },
+    fatGrams?.let { "${it.formatGrams()} г жиров" },
+    calories?.let { "$it ккал" },
+    note.takeIf { it.isNotBlank() },
+    source.takeIf { it.isNotBlank() }
+).joinToString(" • ")
+
+private fun Float.formatGrams(): String = if (this % 1f == 0f) {
+    toInt().toString()
+} else {
+    "%.1f".format(this)
+}

@@ -59,6 +59,7 @@ fun ProfileScreen(
     var otherApiBaseUrl by remember { mutableStateOf("") }
     var otherApiToken by remember { mutableStateOf("") }
     var autoSyncEnabled by remember { mutableStateOf(true) }
+    var exportPreview by remember { mutableStateOf("") }
 
     LaunchedEffect(config) {
         units = config.sourceUnits
@@ -222,6 +223,25 @@ fun ProfileScreen(
                     }
                     configError?.let { error ->
                         Text(text = error, color = AppColors.Danger, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+        item {
+            SettingsCard(title = "Экспорт", subtitle = "CSV с расширенными полями еды для ML") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { exportPreview = viewModel.exportCsv() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Сформировать CSV")
+                    }
+                    if (exportPreview.isNotBlank()) {
+                        Text(
+                            text = exportPreview.lineSequence().take(6).joinToString("\n"),
+                            color = AppColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }

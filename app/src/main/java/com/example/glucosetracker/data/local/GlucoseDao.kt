@@ -35,6 +35,9 @@ interface GlucoseDao {
     @Query("SELECT * FROM meal_entries ORDER BY timestamp DESC")
     fun getAllMeals(): Flow<List<MealEntry>>
 
+    @Query("SELECT * FROM meal_entries WHERE timestamp BETWEEN :start AND :end ORDER BY timestamp DESC")
+    fun getMealsBetween(start: Long, end: Long): Flow<List<MealEntry>>
+
     @Query("SELECT * FROM injection_entries ORDER BY timestamp DESC")
     fun getAllInjections(): Flow<List<InjectionEntry>>
 

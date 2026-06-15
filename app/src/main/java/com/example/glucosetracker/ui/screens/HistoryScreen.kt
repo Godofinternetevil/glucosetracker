@@ -57,8 +57,8 @@ fun HistoryScreen(
         }
         val mealEvents = mealsList.map { meal ->
             HistoryEvent(
-                title = meal.mealName,
-                subtitle = "${meal.carbs} г углеводов",
+                title = "${meal.mealType.mealTypeLabel()} • ${meal.mealName}",
+                subtitle = meal.nutritionSummary(),
                 timestamp = meal.timestamp,
                 marker = "🍽"
             )
@@ -217,3 +217,20 @@ private fun Float.formatUnits(): String = if (this % 1f == 0f) {
 } else {
     "%.1f".format(this)
 }
+
+private fun String.mealTypeLabel(): String = when (this) {
+    "breakfast" -> "Завтрак"
+    "lunch" -> "Обед"
+    "dinner" -> "Ужин"
+    "snack" -> "Перекус"
+    else -> this
+}
+
+private fun com.example.glucosetracker.data.local.entities.MealEntry.nutritionSummary(): String = listOfNotNull(
+    "${carbsGrams.formatUnits()} г углеводов",
+    proteinGrams?.let { "${it.formatUnits()} г белков" },
+    fatGrams?.let { "${it.formatUnits()} г жиров" },
+    calories?.let { "$it ккал" },
+    note.takeIf { it.isNotBlank() },
+    source.takeIf { it.isNotBlank() }
+).joinToString(" • ")

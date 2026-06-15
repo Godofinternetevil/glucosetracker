@@ -41,6 +41,8 @@ class GlucoseRepository(
         dao.insertInsulin(entry)
     }
 
+    fun getMealsBetween(start: Long, end: Long) = dao.getMealsBetween(start, end)
+
     fun getInsulinBetween(start: Long, end: Long) = dao.getInsulinBetween(start, end)
 
     suspend fun getDataSourceConfig(): DataSourceConfig {

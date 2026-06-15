@@ -20,7 +20,7 @@ import com.example.glucosetracker.data.local.entities.MealEntry
         InsulinEntry::class,
         DataSourceConfig::class
     ],
-    version = 5
+    version = 6
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -153,6 +153,47 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `meal_entries` RENAME TO `meal_entries_old`")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `meal_entries` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `mealName` TEXT NOT NULL,
+                        `carbsGrams` REAL NOT NULL,
+                        `proteinGrams` REAL,
+                        `fatGrams` REAL,
+                        `calories` INTEGER,
+                        `mealType` TEXT NOT NULL,
+                        `note` TEXT NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `timestamp` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `meal_entries`
+                        (`id`, `mealName`, `carbsGrams`, `proteinGrams`, `fatGrams`, `calories`, `mealType`, `note`, `source`, `timestamp`)
+                    SELECT
+                        `id`,
+                        `mealName`,
+                        CAST(`carbs` AS REAL),
+                        NULL,
+                        NULL,
+                        NULL,
+                        'snack',
+                        '',
+                        'Manual',
+                        `timestamp`
+                    FROM `meal_entries_old`
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE `meal_entries_old`")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -160,7 +201,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "glucose_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
 
                 INSTANCE = instance

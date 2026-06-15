@@ -184,6 +184,54 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+
+    fun exportCsv(): String {
+        val header = listOf(
+            "type",
+            "timestamp",
+            "name",
+            "glucoseMmolL",
+            "carbsGrams",
+            "proteinGrams",
+            "fatGrams",
+            "calories",
+            "mealType",
+            "note",
+            "source"
+        ).joinToString(",")
+        val meals = mealsList.value.map { meal ->
+            listOf(
+                "meal",
+                meal.timestamp.toString(),
+                meal.mealName,
+                "",
+                meal.carbsGrams.toString(),
+                meal.proteinGrams?.toString().orEmpty(),
+                meal.fatGrams?.toString().orEmpty(),
+                meal.calories?.toString().orEmpty(),
+                meal.mealType,
+                meal.note,
+                meal.source
+            ).joinToCsvRow()
+        }
+        val glucose = glucoseList.value.map { entry ->
+            listOf(
+                "glucose",
+                entry.timestamp.toString(),
+                "",
+                entry.glucoseMmolL.toString(),
+                "",
+                "",
+                "",
+                "",
+                "",
+                entry.trendDirection.orEmpty(),
+                entry.source
+            ).joinToCsvRow()
+        }
+        return (listOf(header) + glucose + meals).joinToString("\n")
+    }
+
     fun addGlucose(level: Float) {
         viewModelScope.launch {
             repository.insertGlucose(
@@ -196,12 +244,27 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addMeal(name: String, carbs: Int) {
+    fun addMeal(
+        name: String,
+        carbsGrams: Float,
+        proteinGrams: Float?,
+        fatGrams: Float?,
+        calories: Int?,
+        mealType: String,
+        note: String,
+        source: String = DataSourceConfig.SOURCE_MANUAL
+    ) {
         viewModelScope.launch {
             repository.insertMeal(
                 MealEntry(
                     mealName = name,
-                    carbs = carbs
+                    carbsGrams = carbsGrams,
+                    proteinGrams = proteinGrams,
+                    fatGrams = fatGrams,
+                    calories = calories,
+                    mealType = mealType,
+                    note = note,
+                    source = source
                 )
             )
         }
@@ -242,4 +305,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }
+}
+
+private fun List<String>.joinToCsvRow(): String = joinToString(",") { value ->
+    val escaped = value.replace("\"", "\"\"")
+    if (escaped.any { it == ',' || it == '\n' || it == '"' }) "\"$escaped\"" else escaped
 }
