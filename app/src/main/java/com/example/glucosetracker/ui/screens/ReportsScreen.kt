@@ -10,21 +10,32 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.glucosetracker.data.export.DatasetExporter
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.ui.theme.AppColors
 import com.example.glucosetracker.viewmodel.HomeViewModel
 import java.util.Calendar
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private data class ReportSummary(
@@ -45,6 +56,34 @@ fun ReportsScreen(
     val weekStart = remember { System.currentTimeMillis() - 7.daysInMillis() }
     val daySummary = remember(glucoseList, dayStart) { glucoseList.summarySince(dayStart) }
     val weekSummary = remember(glucoseList, weekStart) { glucoseList.summarySince(weekStart) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var exportFormat by remember { mutableStateOf(DatasetExporter.Format.CSV) }
+    var exportRange by remember { mutableStateOf(ExportRange.Last7Days) }
+    val createExportDocument = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(exportFormat.mimeType)
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val (start, end) = exportRange.toMillisRange()
+        scope.launch {
+            val glucose = glucoseList.filter { it.timestamp in start..end }
+            val meals = viewModel.mealsList.value.filter { it.timestamp in start..end }
+            val insulin = viewModel.insulinList.value.filter { it.timestamp in start..end }
+            val payload = when (exportFormat) {
+                DatasetExporter.Format.CSV -> DatasetExporter().exportCsv(glucose, meals, insulin)
+                DatasetExporter.Format.JSONL -> DatasetExporter().exportJsonl(glucose, meals, insulin)
+            }
+            val message: CharSequence = runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { output ->
+                    output.write(payload.toByteArray(Charsets.UTF_8))
+                } ?: error("Не удалось открыть файл для записи")
+            }.fold(
+                onSuccess = { "Данные экспортированы" },
+                onFailure = { error -> "Ошибка экспорта: ${error.localizedMessage ?: error.message}" }
+            )
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -62,6 +101,18 @@ fun ReportsScreen(
         }
         item {
             ReportCard(title = "Последние 7 дней", summary = weekSummary)
+        }
+        item {
+            ExportDataCard(
+                selectedFormat = exportFormat,
+                onFormatSelected = { exportFormat = it },
+                selectedRange = exportRange,
+                onRangeSelected = { exportRange = it },
+                onExportClick = {
+                    val fileName = "glucose_dataset_${exportRange.fileSuffix}.${exportFormat.extension}"
+                    createExportDocument.launch(fileName)
+                }
+            )
         }
         item {
             Card(
@@ -86,6 +137,78 @@ fun ReportsScreen(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
+            }
+        }
+    }
+}
+
+private enum class ExportRange(val label: String, val fileSuffix: String) {
+    Today("Сегодня", "today"),
+    Last7Days("7 дней", "7d"),
+    Last30Days("30 дней", "30d"),
+    All("Все данные", "all");
+
+    fun toMillisRange(): Pair<Long, Long> {
+        val now = System.currentTimeMillis()
+        val start = when (this) {
+            Today -> startOfDayMillis()
+            Last7Days -> now - 7.daysInMillis()
+            Last30Days -> now - 30.daysInMillis()
+            All -> 0L
+        }
+        return start to now
+    }
+}
+
+@Composable
+private fun ExportDataCard(
+    selectedFormat: DatasetExporter.Format,
+    onFormatSelected: (DatasetExporter.Format) -> Unit,
+    selectedRange: ExportRange,
+    onRangeSelected: (ExportRange) -> Unit,
+    onExportClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.Card),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = "Экспорт данных",
+                color = AppColors.TextDark,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Сохраните объединённый датасет glucose/meal/insulin через системный выбор файла.",
+                color = AppColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DatasetExporter.Format.entries.forEach { format ->
+                    FilterChip(
+                        selected = selectedFormat == format,
+                        onClick = { onFormatSelected(format) },
+                        label = { Text(format.name) }
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ExportRange.entries.forEach { range ->
+                    FilterChip(
+                        selected = selectedRange == range,
+                        onClick = { onRangeSelected(range) },
+                        label = { Text(range.label) }
+                    )
+                }
+            }
+            Button(onClick = onExportClick, modifier = Modifier.fillMaxWidth()) {
+                Text("Экспорт данных")
             }
         }
     }
