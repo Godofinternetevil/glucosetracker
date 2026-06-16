@@ -48,3 +48,36 @@ timestamp_iso,timestamp_epoch_ms,event_type,glucose_mmol_l,glucose_mg_dl,trend_d
 ## Date ranges
 
 The Reports screen offers common ranges: today, last 7 days, last 30 days, and all data. The selected range is applied to each Room query before events are merged.
+## ML-ready feature row export
+
+A separate ML-ready export mode can generate uniformly sampled feature rows instead of raw event rows. The generator lives in `com.example.glucosetracker.domain.ml` and accepts glucose, meal, and insulin events for a requested period.
+
+Rows are sampled every 5 minutes. Glucose is carried forward from the most recent reading when it is no more than 20 minutes old; future target glucose values are matched to readings at 30, 60, and 120 minute horizons within half of the 5-minute step.
+
+### Feature schema
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `timestamp_iso` | string | UTC ISO-8601 row timestamp. |
+| `timestamp_epoch_ms` | integer | Unix epoch timestamp in milliseconds. |
+| `current_glucose_mmol_l` | number/null | Current glucose in mmol/L. |
+| `current_glucose_mg_dl` | number/null | Current glucose in mg/dL. |
+| `glucose_delta_15_min_mg_dl` | number/null | Current glucose minus glucose 15 minutes ago. |
+| `glucose_delta_30_min_mg_dl` | number/null | Current glucose minus glucose 30 minutes ago. |
+| `glucose_delta_60_min_mg_dl` | number/null | Current glucose minus glucose 60 minutes ago. |
+| `carbs_last_30_min_g` | number | Carbs logged in the previous 30 minutes. |
+| `carbs_last_60_min_g` | number | Carbs logged in the previous 60 minutes. |
+| `carbs_last_120_min_g` | number | Carbs logged in the previous 120 minutes. |
+| `insulin_last_30_min_units` | number | Insulin units logged in the previous 30 minutes. |
+| `insulin_last_60_min_units` | number | Insulin units logged in the previous 60 minutes. |
+| `insulin_last_180_min_units` | number | Insulin units logged in the previous 180 minutes. |
+| `hour_of_day` | integer | Local hour of day for the row timestamp. |
+| `day_of_week` | integer | ISO weekday number, Monday = 1 through Sunday = 7. |
+| `target_low_mg_dl` | number | User target range low bound. |
+| `target_high_mg_dl` | number | User target range high bound. |
+| `target_glucose_30_min_mg_dl` | number/null | Glucose target 30 minutes after the row timestamp. |
+| `target_glucose_60_min_mg_dl` | number/null | Glucose target 60 minutes after the row timestamp. |
+| `target_glucose_120_min_mg_dl` | number/null | Glucose target 120 minutes after the row timestamp. |
+| `target_class_30_min` | string/null | `hypo`, `target`, or `high` at 30 minutes. |
+| `target_class_60_min` | string/null | `hypo`, `target`, or `high` at 60 minutes. |
+| `target_class_120_min` | string/null | `hypo`, `target`, or `high` at 120 minutes. |
