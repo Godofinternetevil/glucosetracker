@@ -10,12 +10,15 @@ import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.InsulinEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.repository.GlucoseRepository
+import com.example.glucosetracker.domain.ml.PredictedGlucose
+import com.example.glucosetracker.domain.ml.SimpleGlucosePredictor
 import com.example.glucosetracker.sync.GlucoseSyncCoordinator
 import com.example.glucosetracker.sync.GlucoseSyncResult
 import com.example.glucosetracker.sync.GlucoseSyncWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -43,6 +46,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = GlucoseRepository(dao)
 
     private val syncCoordinator = GlucoseSyncCoordinator(dao)
+
+    private val glucosePredictor = SimpleGlucosePredictor()
 
     private val _syncState = MutableStateFlow(SyncState())
     val syncState: StateFlow<SyncState> = _syncState
@@ -82,6 +87,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    val predictedGlucose: StateFlow<PredictedGlucose?> = combine(
+        glucoseList,
+        mealsList,
+        insulinList
+    ) { glucose, meals, insulin ->
+        glucosePredictor.predict30Min(glucose, meals, insulin, System.currentTimeMillis())
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
 
     val dataSourceConfig = repository.dataSourceConfig
         .map { it ?: DataSourceConfig() }
