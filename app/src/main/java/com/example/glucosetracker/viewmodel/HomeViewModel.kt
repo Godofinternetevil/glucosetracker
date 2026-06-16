@@ -100,6 +100,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = null
     )
 
+    val glucosePrediction: StateFlow<PredictedGlucose?> = predictedGlucose
+
     val dataSourceConfig = repository.dataSourceConfig
         .map { it ?: DataSourceConfig() }
         .stateIn(

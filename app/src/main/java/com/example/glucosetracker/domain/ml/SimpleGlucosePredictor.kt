@@ -12,6 +12,8 @@ class SimpleGlucosePredictor {
         insulin: List<InsulinEntry>,
         nowMillis: Long
     ): PredictedGlucose? {
+        if (glucose.size < MIN_HISTORY_POINTS) return null
+
         val latestGlucose = glucose.maxByOrNull { it.timestamp } ?: return null
         val recentCarbs = meals
             .filter { it.timestamp in (nowMillis - MEAL_WINDOW_MILLIS)..nowMillis }

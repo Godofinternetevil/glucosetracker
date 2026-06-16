@@ -41,6 +41,7 @@ import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.local.entities.InsulinEntry
+import com.example.glucosetracker.domain.ml.PredictedGlucose
 import com.example.glucosetracker.ui.components.CurrentGlucoseCard
 import com.example.glucosetracker.ui.components.GlucoseChart
 import com.example.glucosetracker.ui.components.StatsCard
@@ -70,6 +71,7 @@ fun HomeScreen(
     val injectionsList by viewModel.injectionsList.collectAsState()
     val insulinList by viewModel.insulinList.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
+    val prediction by viewModel.glucosePrediction.collectAsState()
     val sortedGlucose = glucoseList.sortedBy { it.timestamp }
     val currentEntry = sortedGlucose.lastOrNull()
     val currentGlucose = currentEntry?.glucoseMmolL
@@ -98,6 +100,7 @@ fun HomeScreen(
                 updatedAt = currentEntry?.timestamp?.let { "Обновлено ${formatTime(it)}" } ?: "Добавьте или синхронизируйте значения"
             )
         }
+        item { GlucosePredictionCard(prediction = prediction) }
         item {
             GlucoseChartCard(
                 glucoseList = chartGlucose,
@@ -168,6 +171,66 @@ private fun SyncStatusCard(syncState: SyncState, onSyncClick: () -> Unit) {
                 enabled = syncState.status != SyncStatus.Loading
             ) {
                 Text(if (syncState.status == SyncStatus.Loading) "…" else "Синхронизировать")
+            }
+        }
+    }
+}
+
+@Composable
+fun GlucosePredictionCard(prediction: PredictedGlucose?) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.Card),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = "Прогноз глюкозы",
+                color = AppColors.TextDark,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            if (prediction == null) {
+                Text(
+                    text = "Прогноз недоступен",
+                    color = AppColors.TextDark,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Нужно минимум два измерения глюкозы",
+                    color = AppColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            } else {
+                Text(
+                    text = "${String.format(Locale.getDefault(), "%.1f", prediction.predictedMmolL)} ммоль/л",
+                    color = AppColors.BlueAccent,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "через ${prediction.horizonMinutes} минут",
+                    color = AppColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = prediction.trendLabel,
+                    color = AppColors.TextDark,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Не является медицинской рекомендацией",
+                    color = AppColors.Danger,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }
