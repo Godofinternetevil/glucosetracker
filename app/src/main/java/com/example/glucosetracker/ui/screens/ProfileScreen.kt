@@ -116,7 +116,7 @@ fun ProfileScreen(
             }
         }
         item {
-            SettingsCard(title = "Режим подключения", subtitle = "Manual, Nightscout, xDrip bridge или Other API") {
+            SettingsCard(title = "Режим подключения", subtitle = "Manual, Nightscout, xDrip bridge или O") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ChipRow(
                         options = listOf(
