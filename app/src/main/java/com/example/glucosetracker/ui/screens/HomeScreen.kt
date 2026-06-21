@@ -4,16 +4,13 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -95,7 +92,6 @@ fun HomeScreen(
         contentPadding = PaddingValues(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item { TopBar() }
         item { SyncStatusCard(syncState = syncState, onSyncClick = viewModel::syncGlucose) }
         item {
             CurrentGlucoseCard(
@@ -246,37 +242,6 @@ private fun SyncStatus.homeLabel(): String = when (this) {
     SyncStatus.Loading -> "loading"
     SyncStatus.Success -> "success"
     SyncStatus.Error -> "error"
-}
-
-@Composable
-private fun TopBar() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        CircleIcon(text = "≡")
-        Text(
-            text = "CGM",
-            color = AppColors.TextDark,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-        CircleIcon(text = "•")
-    }
-}
-
-@Composable
-private fun CircleIcon(text: String) {
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .background(AppColors.Card, CircleShape)
-            .border(BorderStroke(AppDimens.SoftBorderWidth, AppColors.Border), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text = text, color = AppColors.TextDark)
-    }
 }
 
 @Composable
