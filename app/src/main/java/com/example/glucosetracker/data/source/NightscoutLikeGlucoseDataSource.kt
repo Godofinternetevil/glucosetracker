@@ -3,6 +3,7 @@ package com.example.glucosetracker.data.source
 import com.example.glucosetracker.data.local.entities.DataSourceConfig
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.remote.mapper.toEntity
+import com.example.glucosetracker.data.remote.retrofit.NightscoutUrlParser
 import com.example.glucosetracker.data.remote.retrofit.RetrofitClient
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,15 +33,25 @@ abstract class NightscoutLikeGlucoseDataSource(
         count: Int,
         sinceTimestamp: Long?
     ): List<GlucoseEntry> {
-        val baseUrl = baseUrlProvider(config).trim()
-        val token = tokenProvider(config).trim().ifBlank { null }
+        val rawToken = tokenProvider(config).trim().ifBlank { null }
+        val connection = if (sourceType == DataSourceConfig.SOURCE_NIGHTSCOUT) {
+            NightscoutUrlParser.parse(
+                rawUrl = baseUrlProvider(config),
+                rawCredential = rawToken
+            )
+        } else {
+            NightscoutUrlParser.parse(rawUrl = baseUrlProvider(config)).copy(
+                queryToken = rawToken,
+                apiSecret = rawToken
+            )
+        }
         val sinceDateString = sinceTimestamp?.toNightscoutDateString()
         val entries = RetrofitClient
-            .nightscoutApi(baseUrl)
+            .nightscoutApi(connection.baseUrl)
             .getGlucoseEntries(
                 count = count,
-                token = token,
-                apiSecret = token,
+                token = connection.queryToken,
+                apiSecret = connection.apiSecret,
                 sinceDateString = sinceDateString
             )
             .map { it.toEntity(sourceType) }

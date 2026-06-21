@@ -7,7 +7,7 @@ import retrofit2.http.Query
 
 interface NightscoutApi {
 
-    @GET("api/v1/entries.json")
+    @GET("/api/v1/entries.json")
     suspend fun getGlucoseEntries(
         @Query("count") count: Int = 24,
         @Query("token") token: String? = null,

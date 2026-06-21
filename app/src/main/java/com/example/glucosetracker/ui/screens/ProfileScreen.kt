@@ -135,7 +135,11 @@ fun ProfileScreen(
                             url = nightscoutBaseUrl,
                             token = nightscoutToken,
                             onUrlChange = { nightscoutBaseUrl = it },
-                            onTokenChange = { nightscoutToken = it }
+                            onTokenChange = { nightscoutToken = it },
+                            urlLabel = "Nightscout URL или token link",
+                            urlPlaceholder = "https://site.example или https://site.example?token=...",
+                            tokenLabel = "Access token / API secret (опционально)",
+                            tokenPlaceholder = "Оставьте пустым, если token есть в URL"
                         )
 
                         DataSourceConfig.SOURCE_XDRIP_BRIDGE -> SourceSettingsFields(
@@ -162,7 +166,7 @@ fun ProfileScreen(
                     }
 
                     Text(
-                        text = "URL должен начинаться с http:// или https://, а токен нужен для удаленной синхронизации.",
+                        text = "Nightscout принимает token link с ?token=...; отдельный Access token будет добавлен в query token, а API secret — в header api-secret.",
                         color = AppColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -266,7 +270,11 @@ private fun SourceSettingsFields(
     url: String,
     token: String,
     onUrlChange: (String) -> Unit,
-    onTokenChange: (String) -> Unit
+    onTokenChange: (String) -> Unit,
+    urlLabel: String = "URL",
+    urlPlaceholder: String = "https://example.com",
+    tokenLabel: String = "Token / API secret",
+    tokenPlaceholder: String = "••••••••••••"
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
@@ -279,16 +287,16 @@ private fun SourceSettingsFields(
             value = url,
             onValueChange = onUrlChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("URL") },
-            placeholder = { Text("https://example.com") },
+            label = { Text(urlLabel) },
+            placeholder = { Text(urlPlaceholder) },
             singleLine = true
         )
         OutlinedTextField(
             value = token,
             onValueChange = onTokenChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Token / API secret") },
-            placeholder = { Text("••••••••••••") },
+            label = { Text(tokenLabel) },
+            placeholder = { Text(tokenPlaceholder) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation()
         )

@@ -83,16 +83,16 @@ data class DataSourceConfig(
 
         if (!remoteUrl.isValidRemoteUrl()) {
             errors += when (sourceType) {
-                SOURCE_NIGHTSCOUT -> "Укажите корректный URL Nightscout, например https://nightscout.example.com"
+                SOURCE_NIGHTSCOUT -> "Укажите корректный Nightscout URL или token link, например https://nightscout.example.com или https://nightscout.example.com?token=..."
                 SOURCE_XDRIP_BRIDGE -> "Укажите корректный URL xDrip bridge, например https://xdrip.example.com"
                 SOURCE_OTHER_API -> "Укажите корректный URL другого API, например https://api.example.com"
                 else -> "Укажите корректный URL источника данных"
             }
         }
 
-        if (remoteToken.isBlank()) {
+        if (remoteToken.isBlank() && (sourceType != SOURCE_NIGHTSCOUT || !remoteUrl.containsNightscoutToken())) {
             errors += when (sourceType) {
-                SOURCE_NIGHTSCOUT -> "Укажите API secret или token для Nightscout"
+                SOURCE_NIGHTSCOUT -> "Укажите Access token / API secret для Nightscout или вставьте token link вида https://nightscout.example.com?token=..."
                 SOURCE_XDRIP_BRIDGE -> "Укажите token для xDrip bridge"
                 SOURCE_OTHER_API -> "Укажите token для другого API"
                 else -> "Укажите токен доступа"
@@ -132,4 +132,11 @@ data class DataSourceConfig(
 private fun String.isValidRemoteUrl(): Boolean {
     val parsed = runCatching { URI(trim()) }.getOrNull() ?: return false
     return parsed.scheme in setOf("http", "https") && !parsed.host.isNullOrBlank()
+}
+
+private fun String.containsNightscoutToken(): Boolean {
+    val parsed = runCatching { URI(trim()) }.getOrNull() ?: return false
+    return parsed.rawQuery?.split('&')?.any { part ->
+        part.substringBefore('=') == "token" && part.substringAfter('=', "").isNotBlank()
+    } == true
 }
