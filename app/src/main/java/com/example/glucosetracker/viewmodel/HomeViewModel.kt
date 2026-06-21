@@ -37,6 +37,25 @@ data class SyncState(
     val errorText: String? = null
 )
 
+enum class AddEventType {
+    Glucose,
+    Meal,
+    Insulin
+}
+
+enum class AddEventStatus {
+    Idle,
+    Loading,
+    Success,
+    Error
+}
+
+data class AddEventState(
+    val type: AddEventType? = null,
+    val status: AddEventStatus = AddEventStatus.Idle,
+    val errorText: String? = null
+)
+
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dao = AppDatabase
@@ -54,6 +73,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _configError = MutableStateFlow<String?>(null)
     val configError: StateFlow<String?> = _configError
+
+    private val _addEventState = MutableStateFlow(AddEventState())
+    val addEventState: StateFlow<AddEventState> = _addEventState
 
     init {
         GlucoseSyncWorker.schedule(application.applicationContext)
@@ -251,15 +273,31 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return (listOf(header) + glucose + meals).joinToString("\n")
     }
 
+    fun clearAddEventState() {
+        _addEventState.value = AddEventState()
+    }
+
     fun addGlucose(level: Float) {
         viewModelScope.launch {
-            repository.insertGlucose(
-                GlucoseEntry(
-                    glucoseMmolL = level,
-                    glucoseMgDl = level * 18.0182f,
-                    source = DataSourceConfig.SOURCE_MANUAL
+            _addEventState.value = AddEventState(type = AddEventType.Glucose, status = AddEventStatus.Loading)
+            runCatching {
+                repository.insertGlucose(
+                    GlucoseEntry(
+                        glucoseMmolL = level,
+                        glucoseMgDl = level * 18.0182f,
+                        source = DataSourceConfig.SOURCE_MANUAL,
+                        timestamp = System.currentTimeMillis()
+                    )
                 )
-            )
+            }.onSuccess {
+                _addEventState.value = AddEventState(type = AddEventType.Glucose, status = AddEventStatus.Success)
+            }.onFailure { error ->
+                _addEventState.value = AddEventState(
+                    type = AddEventType.Glucose,
+                    status = AddEventStatus.Error,
+                    errorText = error.localizedMessage ?: "Не удалось сохранить глюкозу"
+                )
+            }
         }
     }
 
@@ -274,18 +312,30 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         source: String = DataSourceConfig.SOURCE_MANUAL
     ) {
         viewModelScope.launch {
-            repository.insertMeal(
-                MealEntry(
-                    mealName = name,
-                    carbsGrams = carbsGrams,
-                    proteinGrams = proteinGrams,
-                    fatGrams = fatGrams,
-                    calories = calories,
-                    mealType = mealType,
-                    note = note,
-                    source = source
+            _addEventState.value = AddEventState(type = AddEventType.Meal, status = AddEventStatus.Loading)
+            runCatching {
+                repository.insertMeal(
+                    MealEntry(
+                        mealName = name,
+                        carbsGrams = carbsGrams,
+                        proteinGrams = proteinGrams,
+                        fatGrams = fatGrams,
+                        calories = calories,
+                        mealType = mealType,
+                        note = note,
+                        source = source,
+                        timestamp = System.currentTimeMillis()
+                    )
                 )
-            )
+            }.onSuccess {
+                _addEventState.value = AddEventState(type = AddEventType.Meal, status = AddEventStatus.Success)
+            }.onFailure { error ->
+                _addEventState.value = AddEventState(
+                    type = AddEventType.Meal,
+                    status = AddEventStatus.Error,
+                    errorText = error.localizedMessage ?: "Не удалось сохранить еду"
+                )
+            }
         }
     }
 
@@ -314,14 +364,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         source: String = DataSourceConfig.SOURCE_MANUAL
     ) {
         viewModelScope.launch {
-            repository.insertInsulin(
-                InsulinEntry(
-                    units = units,
-                    insulinType = insulinType,
-                    note = note,
-                    source = source
+            _addEventState.value = AddEventState(type = AddEventType.Insulin, status = AddEventStatus.Loading)
+            runCatching {
+                repository.insertInsulin(
+                    InsulinEntry(
+                        units = units,
+                        insulinType = insulinType,
+                        note = note,
+                        source = source,
+                        timestamp = System.currentTimeMillis()
+                    )
                 )
-            )
+            }.onSuccess {
+                _addEventState.value = AddEventState(type = AddEventType.Insulin, status = AddEventStatus.Success)
+            }.onFailure { error ->
+                _addEventState.value = AddEventState(
+                    type = AddEventType.Insulin,
+                    status = AddEventStatus.Error,
+                    errorText = error.localizedMessage ?: "Не удалось сохранить инсулин"
+                )
+            }
         }
     }
 }

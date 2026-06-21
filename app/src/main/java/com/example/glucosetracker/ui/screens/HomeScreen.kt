@@ -27,6 +27,7 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.glucosetracker.data.local.entities.DataSourceConfig
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
-import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.local.entities.InsulinEntry
 import com.example.glucosetracker.domain.ml.PredictedGlucose
@@ -50,6 +50,8 @@ import com.example.glucosetracker.ui.components.TodayEventType
 import com.example.glucosetracker.ui.components.TodayEventsCard
 import com.example.glucosetracker.ui.theme.AppColors
 import com.example.glucosetracker.ui.theme.AppDimens
+import com.example.glucosetracker.viewmodel.AddEventState
+import com.example.glucosetracker.viewmodel.AddEventStatus
 import com.example.glucosetracker.viewmodel.HomeViewModel
 import com.example.glucosetracker.viewmodel.SyncState
 import com.example.glucosetracker.viewmodel.SyncStatus
@@ -68,9 +70,9 @@ fun HomeScreen(
 ) {
     val glucoseList by viewModel.glucoseList.collectAsState()
     val mealsList by viewModel.mealsList.collectAsState()
-    val injectionsList by viewModel.injectionsList.collectAsState()
     val insulinList by viewModel.insulinList.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
+    val addEventState by viewModel.addEventState.collectAsState()
     val prediction by viewModel.glucosePrediction.collectAsState()
     val sortedGlucose = glucoseList.sortedBy { it.timestamp }
     val currentEntry = sortedGlucose.lastOrNull()
@@ -119,7 +121,6 @@ fun HomeScreen(
             TodayEventsCard(
                 events = todayEvents(
                     mealsList = mealsList,
-                    injectionsList = injectionsList,
                     insulinList = insulinList
                 ),
                 onAddClick = { isAddSheetVisible = true }
@@ -131,9 +132,11 @@ fun HomeScreen(
         AddEventBottomSheet(
             sheetState = sheetState,
             onDismiss = { isAddSheetVisible = false },
+            addEventState = addEventState,
             onAddGlucose = viewModel::addGlucose,
             onAddMeal = viewModel::addMeal,
-            onAddInsulin = viewModel::addInsulin
+            onAddInsulin = viewModel::addInsulin,
+            onClearAddEventState = viewModel::clearAddEventState
         )
     }
 }
@@ -323,9 +326,11 @@ private fun GlucoseChartCard(
 private fun AddEventBottomSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
+    addEventState: AddEventState,
     onAddGlucose: (Float) -> Unit,
     onAddMeal: (String, Float, Float?, Float?, Int?, String, String, String) -> Unit,
-    onAddInsulin: (Float, String, String, String) -> Unit
+    onAddInsulin: (Float, String, String, String) -> Unit,
+    onClearAddEventState: () -> Unit
 ) {
     val tabs = listOf("Глюкоза", "Еда", "Инсулин")
     var selectedTab by remember { mutableStateOf(0) }
@@ -340,6 +345,24 @@ private fun AddEventBottomSheet(
     var insulinUnitsInput by remember { mutableStateOf("") }
     var insulinType by remember { mutableStateOf(InsulinEntry.TYPE_RAPID) }
     var notes by remember { mutableStateOf("") }
+
+    LaunchedEffect(addEventState.status) {
+        if (addEventState.status == AddEventStatus.Success) {
+            glucoseInput = ""
+            mealName = ""
+            carbsInput = ""
+            proteinInput = ""
+            fatInput = ""
+            caloriesInput = ""
+            mealType = MealEntry.TYPE_SNACK
+            mealNote = ""
+            insulinUnitsInput = ""
+            insulinType = InsulinEntry.TYPE_RAPID
+            notes = ""
+            onClearAddEventState()
+            onDismiss()
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -372,6 +395,15 @@ private fun AddEventBottomSheet(
                 }
             }
 
+            addEventState.errorText?.takeIf { addEventState.status == AddEventStatus.Error }?.let { error ->
+                Text(
+                    text = error,
+                    color = AppColors.Danger,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
             when (selectedTab) {
                 0 -> GlucoseSection(
                     glucoseInput = glucoseInput,
@@ -379,8 +411,6 @@ private fun AddEventBottomSheet(
                     onSave = {
                         glucoseInput.toFloatOrNull()?.let { level ->
                             onAddGlucose(level)
-                            glucoseInput = ""
-                            onDismiss()
                         }
                     }
                 )
@@ -416,14 +446,7 @@ private fun AddEventBottomSheet(
                                 mealNote.trim(),
                                 DataSourceConfig.SOURCE_MANUAL
                             )
-                            mealName = ""
-                            carbsInput = ""
-                            proteinInput = ""
-                            fatInput = ""
-                            caloriesInput = ""
-                            mealType = MealEntry.TYPE_SNACK
-                            mealNote = ""
-                            onDismiss()
+                            // Keep the sheet open until HomeViewModel reports a successful insert.
                         }
                     }
                 )
@@ -444,10 +467,7 @@ private fun AddEventBottomSheet(
                                 notes.trim(),
                                 DataSourceConfig.SOURCE_MANUAL
                             )
-                            insulinUnitsInput = ""
-                            insulinType = InsulinEntry.TYPE_RAPID
-                            notes = ""
-                            onDismiss()
+                            // Keep the sheet open until HomeViewModel reports a successful insert.
                         }
                     }
                 )
@@ -519,13 +539,6 @@ private fun MealSection(
         value = mealName,
         onValueChange = onMealNameChange,
         label = { Text("Еда") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
-    OutlinedTextField(
-        value = carbsInput,
-        onValueChange = onCarbsInputChange,
-        label = { Text("Углеводы, г") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
@@ -660,12 +673,13 @@ private fun InsulinSection(
     }
 }
 
-private fun todayEvents(
+internal fun todayEvents(
     mealsList: List<MealEntry>,
-    injectionsList: List<InjectionEntry>,
-    insulinList: List<InsulinEntry>
+    insulinList: List<InsulinEntry>,
+    nowMillis: Long = System.currentTimeMillis()
 ): List<TodayEvent> {
     val startOfDay = Calendar.getInstance().apply {
+        timeInMillis = nowMillis
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0)
@@ -680,16 +694,6 @@ private fun todayEvents(
             type = TodayEventType.Meal
         )
     }
-    val injectionEvents = injectionsList.filter { it.timestamp >= startOfDay }.map { injection ->
-        TodayEvent(
-            title = "${injection.insulinUnits.formatUnits()} ед. • ${injection.injectionType}",
-            subtitle = listOf(injection.insulinType, injection.notes)
-                .filter { it.isNotBlank() }
-                .joinToString(" • "),
-            timestamp = injection.timestamp,
-            type = TodayEventType.Injection
-        )
-    }
 
     val insulinEvents = insulinList.filter { it.timestamp >= startOfDay }.map { insulin ->
         TodayEvent(
@@ -702,7 +706,7 @@ private fun todayEvents(
         )
     }
 
-    return mealEvents + injectionEvents + insulinEvents
+    return mealEvents + insulinEvents
 }
 
 private fun String.insulinTypeLabel(): String = when (this) {
