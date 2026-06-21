@@ -116,14 +116,13 @@ fun ProfileScreen(
             }
         }
         item {
-            SettingsCard(title = "Режим подключения", subtitle = "Manual, Nightscout, xDrip bridge или O") {
+            SettingsCard(title = "Режим подключения", subtitle = "Manual, Nightscout или xDrip bridge") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ChipRow(
                         options = listOf(
                             DataSourceConfig.SOURCE_MANUAL,
                             DataSourceConfig.SOURCE_NIGHTSCOUT,
                             DataSourceConfig.SOURCE_XDRIP_BRIDGE,
-                            DataSourceConfig.SOURCE_OTHER_API
                         ),
                         selected = dataSource,
                         onSelected = { dataSource = it }
