@@ -31,7 +31,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.glucosetracker.data.export.DatasetExporter
+import com.example.glucosetracker.domain.ml.MlFeatureExporter
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
+import com.example.glucosetracker.data.local.entities.InsulinEntry
+import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.ui.theme.AppColors
 import com.example.glucosetracker.viewmodel.HomeViewModel
 import java.util.Calendar
@@ -59,6 +62,7 @@ fun ReportsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var exportFormat by remember { mutableStateOf(DatasetExporter.Format.CSV) }
+    var exportType by remember { mutableStateOf(ExportType.RawEvents) }
     var exportRange by remember { mutableStateOf(ExportRange.Last7Days) }
     val createExportDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(exportFormat.mimeType)
@@ -69,13 +73,25 @@ fun ReportsScreen(
             val glucose = glucoseList.filter { it.timestamp in start..end }
             val meals = viewModel.mealsList.value.filter { it.timestamp in start..end }
             val insulin = viewModel.insulinList.value.filter { it.timestamp in start..end }
-            val payload = when (exportFormat) {
-                DatasetExporter.Format.CSV -> DatasetExporter().exportCsv(glucose, meals, insulin)
-                DatasetExporter.Format.JSONL -> DatasetExporter().exportJsonl(glucose, meals, insulin)
+            val exportPayload = buildReportsExportPayload(
+                exportType = exportType,
+                exportFormat = exportFormat,
+                glucose = glucose,
+                meals = meals,
+                insulin = insulin,
+                startTimestamp = start,
+                endTimestamp = end
+            )
+            if (exportPayload.missingTargets) {
+                Toast.makeText(
+                    context,
+                    "Недостаточно будущих измерений глюкозы для части target-колонок; файл будет экспортирован с доступными строками.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
             val message: CharSequence = runCatching {
                 context.contentResolver.openOutputStream(uri)?.use { output ->
-                    output.write(payload.toByteArray(Charsets.UTF_8))
+                    output.write(exportPayload.content.toByteArray(Charsets.UTF_8))
                 } ?: error("Не удалось открыть файл для записи")
             }.fold(
                 onSuccess = { "Данные экспортированы" },
@@ -104,13 +120,14 @@ fun ReportsScreen(
         }
         item {
             ExportDataCard(
+                selectedType = exportType,
+                onTypeSelected = { exportType = it },
                 selectedFormat = exportFormat,
                 onFormatSelected = { exportFormat = it },
                 selectedRange = exportRange,
                 onRangeSelected = { exportRange = it },
                 onExportClick = {
-                    val fileName = "glucose_dataset_${exportRange.fileSuffix}.${exportFormat.extension}"
-                    createExportDocument.launch(fileName)
+                    createExportDocument.launch(exportType.fileName(exportRange, exportFormat))
                 }
             )
         }
@@ -142,7 +159,63 @@ fun ReportsScreen(
     }
 }
 
-private enum class ExportRange(val label: String, val fileSuffix: String) {
+internal enum class ExportType(val label: String, private val filePrefix: String) {
+    RawEvents("Raw events", "glucose_dataset"),
+    MlTrainingFeatures("ML training features", "glucose_ml_features");
+
+    fun fileName(range: ExportRange, format: DatasetExporter.Format): String =
+        "${filePrefix}_${range.fileSuffix}.${format.extension}"
+}
+
+internal data class ReportsExportPayload(
+    val content: String,
+    val missingTargets: Boolean
+)
+
+internal fun buildReportsExportPayload(
+    exportType: ExportType,
+    exportFormat: DatasetExporter.Format,
+    glucose: List<GlucoseEntry>,
+    meals: List<MealEntry>,
+    insulin: List<InsulinEntry>,
+    startTimestamp: Long,
+    endTimestamp: Long,
+    datasetExporter: DatasetExporter = DatasetExporter(),
+    mlFeatureExporter: MlFeatureExporter = MlFeatureExporter()
+): ReportsExportPayload = when (exportType) {
+    ExportType.RawEvents -> ReportsExportPayload(
+        content = when (exportFormat) {
+            DatasetExporter.Format.CSV -> datasetExporter.exportCsv(glucose, meals, insulin)
+            DatasetExporter.Format.JSONL -> datasetExporter.exportJsonl(glucose, meals, insulin)
+        },
+        missingTargets = false
+    )
+
+    ExportType.MlTrainingFeatures -> {
+        val rows = mlFeatureExporter.generateRows(
+            glucose = glucose,
+            meals = meals,
+            insulin = insulin,
+            startTimestamp = startTimestamp,
+            endTimestamp = endTimestamp,
+            targetLowMgDl = TARGET_LOW_MG_DL,
+            targetHighMgDl = TARGET_HIGH_MG_DL
+        )
+        ReportsExportPayload(
+            content = when (exportFormat) {
+                DatasetExporter.Format.CSV -> mlFeatureExporter.exportCsv(rows)
+                DatasetExporter.Format.JSONL -> mlFeatureExporter.exportJsonl(rows)
+            },
+            missingTargets = rows.isEmpty() || rows.any { row ->
+                row.targetGlucose30MinMgDl == null ||
+                        row.targetGlucose60MinMgDl == null ||
+                        row.targetGlucose120MinMgDl == null
+            }
+        )
+    }
+}
+
+internal enum class ExportRange(val label: String, val fileSuffix: String) {
     Today("Сегодня", "today"),
     Last7Days("7 дней", "7d"),
     Last30Days("30 дней", "30d"),
@@ -162,6 +235,8 @@ private enum class ExportRange(val label: String, val fileSuffix: String) {
 
 @Composable
 private fun ExportDataCard(
+    selectedType: ExportType,
+    onTypeSelected: (ExportType) -> Unit,
     selectedFormat: DatasetExporter.Format,
     onFormatSelected: (DatasetExporter.Format) -> Unit,
     selectedRange: ExportRange,
@@ -185,10 +260,19 @@ private fun ExportDataCard(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Сохраните объединённый датасет glucose/meal/insulin через системный выбор файла.",
+                text = "Сохраните raw-события или ML-ready признаки через системный выбор файла.",
                 color = AppColors.TextSecondary,
                 style = MaterialTheme.typography.bodyMedium
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ExportType.entries.forEach { type ->
+                    FilterChip(
+                        selected = selectedType == type,
+                        onClick = { onTypeSelected(type) },
+                        label = { Text(type.label) }
+                    )
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DatasetExporter.Format.entries.forEach { format ->
                     FilterChip(
@@ -305,3 +389,6 @@ private fun startOfDayMillis(): Long = Calendar.getInstance().apply {
 }.timeInMillis
 
 private fun Int.daysInMillis(): Long = this * 24L * 60L * 60L * 1000L
+
+private const val TARGET_LOW_MG_DL = 70f
+private const val TARGET_HIGH_MG_DL = 180f

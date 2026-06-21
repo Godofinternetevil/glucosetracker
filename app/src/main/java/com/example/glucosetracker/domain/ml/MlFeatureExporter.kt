@@ -12,12 +12,12 @@ class MlFeatureExporter(
     private val generator: MlFeatureRowGenerator = MlFeatureRowGenerator()
 ) {
     fun exportCsv(rows: List<MlFeatureRow>): String =
-        rows.joinToString(separator = "\n", prefix = HEADER.joinToString(",") + "\n") { row ->
+        rows.joinToString(separator = "\n", prefix = CSV_HEADER.joinToString(",") + "\n") { row ->
             row.toColumns().joinToCsvRow()
         }
 
     fun exportJsonl(rows: List<MlFeatureRow>): String = rows.joinToString("\n") { row ->
-        HEADER.zip(row.toColumns()).joinToString(prefix = "{", postfix = "}") { (name, value) ->
+        CSV_HEADER.zip(row.toColumns()).joinToString(prefix = "{", postfix = "}") { (name, value) ->
             "\"${name.escapeJson()}\":${value.toJsonValue(name)}"
         }
     }
@@ -111,7 +111,7 @@ class MlFeatureExporter(
     }
 
     companion object {
-        val HEADER = listOf(
+        val CSV_HEADER = listOf(
             "timestamp_iso",
             "timestamp_epoch_ms",
             "current_glucose_mmol_l",
@@ -137,6 +137,8 @@ class MlFeatureExporter(
             "target_class_120_min"
         )
 
-        private val NUMERIC_COLUMNS = HEADER.toSet() - setOf("timestamp_iso", "target_class_30_min", "target_class_60_min", "target_class_120_min")
+        val HEADER: List<String> = CSV_HEADER
+
+        private val NUMERIC_COLUMNS = CSV_HEADER.toSet() - setOf("timestamp_iso", "target_class_30_min", "target_class_60_min", "target_class_120_min")
     }
 }

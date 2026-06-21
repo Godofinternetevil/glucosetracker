@@ -1,6 +1,13 @@
 # Dataset export format
 
-The app can export local Room data as a single time-ordered dataset for table analysis and ML pipelines. Exports are launched from the Reports screen with Android Storage Access Framework, so the user chooses the destination file.
+The app can export local Room data either as raw time-ordered events or as ML training feature rows. Exports are launched from the Reports screen with Android Storage Access Framework, so the user chooses the destination file.
+
+## Export modes and filenames
+
+The Reports screen has an export type selector:
+
+- **Raw events** uses `DatasetExporter` and suggests filenames such as `glucose_dataset_7d.csv` or `glucose_dataset_7d.jsonl`.
+- **ML training features** uses `MlFeatureExporter` and suggests filenames such as `glucose_ml_features_7d.csv` or `glucose_ml_features_7d.jsonl`.
 
 ## Formats
 
@@ -11,7 +18,7 @@ The app can export local Room data as a single time-ordered dataset for table an
 
 Glucose, meal, and insulin records are combined into one stream and sorted by `timestamp_epoch_ms` ascending.
 
-## Schema
+## Raw events schema
 
 | Field | Type | Applies to | Description |
 | --- | --- | --- | --- |
@@ -48,11 +55,12 @@ timestamp_iso,timestamp_epoch_ms,event_type,glucose_mmol_l,glucose_mg_dl,trend_d
 ## Date ranges
 
 The Reports screen offers common ranges: today, last 7 days, last 30 days, and all data. The selected range is applied to each Room query before events are merged.
+
 ## ML-ready feature row export
 
-A separate ML-ready export mode can generate uniformly sampled feature rows instead of raw event rows. The generator lives in `com.example.glucosetracker.domain.ml` and accepts glucose, meal, and insulin events for a requested period.
+The **ML training features** export mode generates uniformly sampled feature rows instead of raw event rows. The generator lives in `com.example.glucosetracker.domain.ml` and accepts glucose, meal, and insulin events for a requested period.
 
-Rows are sampled every 5 minutes. Glucose is carried forward from the most recent reading when it is no more than 20 minutes old; future target glucose values are matched to readings at 30, 60, and 120 minute horizons within half of the 5-minute step.
+Rows are sampled every 5 minutes. If there are not enough future glucose readings to fill target columns, the app warns the user but still exports the CSV header (for CSV) and any partial rows that can be generated. Glucose is carried forward from the most recent reading when it is no more than 20 minutes old; future target glucose values are matched to readings at 30, 60, and 120 minute horizons within half of the 5-minute step.
 
 ### Feature schema
 
