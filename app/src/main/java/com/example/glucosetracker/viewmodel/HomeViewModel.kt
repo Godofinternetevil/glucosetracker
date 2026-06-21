@@ -309,14 +309,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         calories: Int?,
         mealType: String,
         note: String,
-        source: String = DataSourceConfig.SOURCE_MANUAL
+        source: String = DataSourceConfig.SOURCE_MANUAL,
+        timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
             _addEventState.value = AddEventState(type = AddEventType.Meal, status = AddEventStatus.Loading)
             runCatching {
                 repository.insertMeal(
-                    MealEntry(
-                        mealName = name,
+                    createMealEntry(
+                        name = name,
                         carbsGrams = carbsGrams,
                         proteinGrams = proteinGrams,
                         fatGrams = fatGrams,
@@ -324,7 +325,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         mealType = mealType,
                         note = note,
                         source = source,
-                        timestamp = System.currentTimeMillis()
+                        timestamp = timestamp
                     )
                 )
             }.onSuccess {
@@ -392,3 +393,25 @@ private fun List<String>.joinToCsvRow(): String = joinToString(",") { value ->
     val escaped = value.replace("\"", "\"\"")
     if (escaped.any { it == ',' || it == '\n' || it == '"' }) "\"$escaped\"" else escaped
 }
+
+internal fun createMealEntry(
+    name: String,
+    carbsGrams: Float,
+    proteinGrams: Float?,
+    fatGrams: Float?,
+    calories: Int?,
+    mealType: String,
+    note: String,
+    source: String = DataSourceConfig.SOURCE_MANUAL,
+    timestamp: Long = System.currentTimeMillis()
+): MealEntry = MealEntry(
+    mealName = name,
+    carbsGrams = carbsGrams,
+    proteinGrams = proteinGrams,
+    fatGrams = fatGrams,
+    calories = calories,
+    mealType = mealType,
+    note = note,
+    source = source,
+    timestamp = timestamp
+)

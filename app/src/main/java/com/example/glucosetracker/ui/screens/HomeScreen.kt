@@ -23,6 +23,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -328,7 +330,7 @@ private fun AddEventBottomSheet(
     onDismiss: () -> Unit,
     addEventState: AddEventState,
     onAddGlucose: (Float) -> Unit,
-    onAddMeal: (String, Float, Float?, Float?, Int?, String, String, String) -> Unit,
+    onAddMeal: (String, Float, Float?, Float?, Int?, String, String, String, Long) -> Unit,
     onAddInsulin: (Float, String, String, String) -> Unit,
     onClearAddEventState: () -> Unit
 ) {
@@ -342,6 +344,9 @@ private fun AddEventBottomSheet(
     var caloriesInput by remember { mutableStateOf("") }
     var mealType by remember { mutableStateOf(MealEntry.TYPE_SNACK) }
     var mealNote by remember { mutableStateOf("") }
+    var mealTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var mealHourInput by remember { mutableStateOf(formatHour(System.currentTimeMillis())) }
+    var mealMinuteInput by remember { mutableStateOf(formatMinute(System.currentTimeMillis())) }
     var insulinUnitsInput by remember { mutableStateOf("") }
     var insulinType by remember { mutableStateOf(InsulinEntry.TYPE_RAPID) }
     var notes by remember { mutableStateOf("") }
@@ -356,6 +361,9 @@ private fun AddEventBottomSheet(
             caloriesInput = ""
             mealType = MealEntry.TYPE_SNACK
             mealNote = ""
+            mealTimestamp = System.currentTimeMillis()
+            mealHourInput = formatHour(mealTimestamp)
+            mealMinuteInput = formatMinute(mealTimestamp)
             insulinUnitsInput = ""
             insulinType = InsulinEntry.TYPE_RAPID
             notes = ""
@@ -430,12 +438,24 @@ private fun AddEventBottomSheet(
                     onMealTypeChange = { mealType = it },
                     note = mealNote,
                     onNoteChange = { mealNote = it },
+                    hourInput = mealHourInput,
+                    onHourInputChange = { input ->
+                        mealHourInput = input.filter(Char::isDigit).take(2)
+                    },
+                    minuteInput = mealMinuteInput,
+                    onMinuteInputChange = { input ->
+                        mealMinuteInput = input.filter(Char::isDigit).take(2)
+                    },
                     onSave = {
                         val carbs = carbsInput.toFloatOrNull()
                         val protein = proteinInput.toFloatOrNull()
                         val fat = fatInput.toFloatOrNull()
                         val calories = caloriesInput.toIntOrNull()
-                        if (mealName.isNotBlank() && carbs != null) {
+                        val hour = mealHourInput.toIntOrNull()
+                        val minute = mealMinuteInput.toIntOrNull()
+                        if (mealName.isNotBlank() && carbs != null && hour != null && minute != null && hour in 0..23 && minute in 0..59) {
+                            val selectedTimestamp = mealTimestamp.withHourMinute(hour, minute)
+                            mealTimestamp = selectedTimestamp
                             onAddMeal(
                                 mealName.trim(),
                                 carbs,
@@ -444,7 +464,8 @@ private fun AddEventBottomSheet(
                                 calories,
                                 mealType,
                                 mealNote.trim(),
-                                DataSourceConfig.SOURCE_MANUAL
+                                DataSourceConfig.SOURCE_MANUAL,
+                                selectedTimestamp
                             )
                             // Keep the sheet open until HomeViewModel reports a successful insert.
                         }
@@ -533,6 +554,10 @@ private fun MealSection(
     onMealTypeChange: (String) -> Unit,
     note: String,
     onNoteChange: (String) -> Unit,
+    hourInput: String,
+    onHourInputChange: (String) -> Unit,
+    minuteInput: String,
+    onMinuteInputChange: (String) -> Unit,
     onSave: () -> Unit
 ) {
     OutlinedTextField(
@@ -566,6 +591,29 @@ private fun MealSection(
                 modifier = Modifier.weight(1f)
             )
         }
+    }
+    Text(
+        text = "Время приема пищи",
+        color = AppColors.TextSecondary,
+        style = MaterialTheme.typography.bodySmall
+    )
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = hourInput,
+            onValueChange = onHourInputChange,
+            label = { Text("Часы") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f)
+        )
+        OutlinedTextField(
+            value = minuteInput,
+            onValueChange = onMinuteInputChange,
+            label = { Text("Минуты") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f)
+        )
     }
     OutlinedTextField(
         value = carbsInput,
@@ -731,6 +779,18 @@ private fun glucoseStatusText(glucose: Float): String = when {
 }
 
 private fun formatTime(timestamp: Long): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+private fun formatHour(timestamp: Long): String = SimpleDateFormat("HH", Locale.getDefault()).format(Date(timestamp))
+
+private fun formatMinute(timestamp: Long): String = SimpleDateFormat("mm", Locale.getDefault()).format(Date(timestamp))
+
+internal fun Long.withHourMinute(hour: Int, minute: Int): Long = Calendar.getInstance().apply {
+    timeInMillis = this@withHourMinute
+    set(Calendar.HOUR_OF_DAY, hour)
+    set(Calendar.MINUTE, minute)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+}.timeInMillis
 
 private fun averageGlucoseText(glucoseList: List<GlucoseEntry>): String {
     if (glucoseList.isEmpty()) return "--"
