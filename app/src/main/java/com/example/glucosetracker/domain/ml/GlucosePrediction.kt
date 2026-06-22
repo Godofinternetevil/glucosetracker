@@ -5,5 +5,6 @@ data class PredictedGlucose(
     val predictedMmolL: Float,
     val predictedMgDl: Float,
     val trendLabel: String,
-    val confidenceLabel: String
+    val confidenceLabel: String,
+    val sourceLabel: String
 )

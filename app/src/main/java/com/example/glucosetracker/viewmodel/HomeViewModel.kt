@@ -10,8 +10,10 @@ import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.InsulinEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.repository.GlucoseRepository
+import com.example.glucosetracker.domain.ml.MlFeatureExporter
 import com.example.glucosetracker.domain.ml.PredictedGlucose
 import com.example.glucosetracker.domain.ml.SimpleGlucosePredictor
+import com.example.glucosetracker.domain.ml.TrainedGlucosePredictor
 import com.example.glucosetracker.sync.GlucoseSyncCoordinator
 import com.example.glucosetracker.sync.GlucoseSyncResult
 import com.example.glucosetracker.sync.GlucoseSyncWorker
@@ -58,6 +60,13 @@ data class AddEventState(
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
+    private companion object {
+        const val TARGET_LOW_MG_DL = 70f
+        const val TARGET_HIGH_MG_DL = 180f
+        const val MG_DL_PER_MMOL_L = 18.0182f
+        const val TREND_THRESHOLD_MG_DL = 18f
+    }
+
     private val dao = AppDatabase
         .getDatabase(application)
         .glucoseDao()
@@ -67,6 +76,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val syncCoordinator = GlucoseSyncCoordinator(dao)
 
     private val glucosePredictor = SimpleGlucosePredictor()
+
+    private val mlFeatureExporter = MlFeatureExporter()
+
+    private val trainedGlucosePredictor = TrainedGlucosePredictor()
 
     private val _syncState = MutableStateFlow(SyncState())
     val syncState: StateFlow<SyncState> = _syncState
@@ -115,7 +128,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         mealsList,
         insulinList
     ) { glucose, meals, insulin ->
-        glucosePredictor.predict30Min(glucose, meals, insulin, System.currentTimeMillis())
+        predictWithPersonalHistoryOrFallback(glucose, meals, insulin, System.currentTimeMillis())
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -131,6 +144,58 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = DataSourceConfig()
         )
+
+
+    private fun predictWithPersonalHistoryOrFallback(
+        glucose: List<GlucoseEntry>,
+        meals: List<MealEntry>,
+        insulin: List<InsulinEntry>,
+        nowMillis: Long
+    ): PredictedGlucose? {
+        val trainedPrediction = buildPersonalHistoryPrediction(glucose, meals, insulin)
+        if (trainedPrediction != null) return trainedPrediction
+
+        return glucosePredictor.predict30Min(glucose, meals, insulin, nowMillis)
+    }
+
+    private fun buildPersonalHistoryPrediction(
+        glucose: List<GlucoseEntry>,
+        meals: List<MealEntry>,
+        insulin: List<InsulinEntry>
+    ): PredictedGlucose? {
+        val sortedGlucose = glucose.sortedBy { it.timestamp }
+        val startTimestamp = sortedGlucose.firstOrNull()?.timestamp ?: return null
+        val endTimestamp = sortedGlucose.lastOrNull()?.timestamp ?: return null
+        val rows = mlFeatureExporter.generateRows(
+            glucose = glucose,
+            meals = meals,
+            insulin = insulin,
+            startTimestamp = startTimestamp,
+            endTimestamp = endTimestamp,
+            targetLowMgDl = TARGET_LOW_MG_DL,
+            targetHighMgDl = TARGET_HIGH_MG_DL
+        )
+        val currentRow = rows.lastOrNull { it.currentGlucoseMgDl != null && it.currentGlucoseMgDl > 0f } ?: return null
+        val model = trainedGlucosePredictor.train(rows) ?: return null
+        val prediction = model.predict(currentRow) ?: return null
+        val currentMgDl = currentRow.currentGlucoseMgDl ?: return null
+        val predictedMmolL = prediction.predictedMgDl / MG_DL_PER_MMOL_L
+
+        return PredictedGlucose(
+            horizonMinutes = prediction.horizonMinutes,
+            predictedMmolL = predictedMmolL,
+            predictedMgDl = prediction.predictedMgDl,
+            trendLabel = trendLabel(currentMgDl, prediction.predictedMgDl),
+            confidenceLabel = "Personal history (${prediction.trainingRowCount} rows)",
+            sourceLabel = "Прогноз на персональной истории"
+        )
+    }
+
+    private fun trendLabel(currentMgDl: Float, predictedMgDl: Float): String = when {
+        predictedMgDl - currentMgDl >= TREND_THRESHOLD_MG_DL -> "Rising"
+        currentMgDl - predictedMgDl >= TREND_THRESHOLD_MG_DL -> "Falling"
+        else -> "Stable"
+    }
 
     fun syncFromSource(force: Boolean = false) {
         syncGlucose(force)

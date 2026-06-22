@@ -32,7 +32,8 @@ class SimpleGlucosePredictor {
             predictedMmolL = predictedMmolL,
             predictedMgDl = predictedMmolL * MMOL_L_TO_MG_DL,
             trendLabel = trendLabel(latestGlucose.glucoseMmolL, predictedMmolL),
-            confidenceLabel = confidenceLabel(glucose, nowMillis)
+            confidenceLabel = confidenceLabel(glucose, nowMillis),
+            sourceLabel = "Keras"
         )
     }
 
