@@ -228,6 +228,17 @@ fun GlucosePredictionCard(prediction: PredictedGlucose?) {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
+                    text = prediction.sourceLabel,
+                    color = AppColors.TextDark,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Уверенность: ${prediction.confidenceLabel}",
+                    color = AppColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
                     text = "Не является медицинской рекомендацией",
                     color = AppColors.Danger,
                     style = MaterialTheme.typography.bodySmall
