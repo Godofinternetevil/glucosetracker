@@ -47,6 +47,7 @@ class TrainedGlucosePredictor(
 
             return TrainedPrediction(
                 horizonMinutes = PredictionHorizon.MINUTES_120.minutes,
+
                 predictedMgDl = (weightedTarget / totalWeight).toFloat(),
                 trainingRowCount = trainingRowCount
             )
