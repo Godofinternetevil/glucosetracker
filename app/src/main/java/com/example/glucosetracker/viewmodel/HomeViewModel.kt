@@ -9,6 +9,7 @@ import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.InsulinEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
+import com.example.glucosetracker.data.repository.GlucosePredictionRepository
 import com.example.glucosetracker.data.repository.GlucoseRepository
 import com.example.glucosetracker.domain.ml.GlucosePredictor
 import com.example.glucosetracker.domain.ml.PredictionResult
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -58,11 +60,13 @@ data class AddEventState(
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val dao = AppDatabase
-        .getDatabase(application)
-        .glucoseDao()
+    private val database = AppDatabase.getDatabase(application)
+
+    private val dao = database.glucoseDao()
 
     private val repository = GlucoseRepository(dao)
+
+    private val predictionRepository = GlucosePredictionRepository(database.predictionDao())
 
     private val syncCoordinator = GlucoseSyncCoordinator(dao)
 
@@ -116,6 +120,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         insulinList
     ) { glucose, meals, insulin ->
         glucosePredictor.predict30Min(glucose, meals, insulin, System.currentTimeMillis())
+    }.onEach { prediction ->
+        prediction?.let { predictionRepository.savePrediction(it) }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),

@@ -11,6 +11,7 @@ import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.InsulinEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
+import com.example.glucosetracker.data.local.entities.PredictionEntry
 
 @Database(
     entities = [
@@ -18,13 +19,16 @@ import com.example.glucosetracker.data.local.entities.MealEntry
         MealEntry::class,
         InjectionEntry::class,
         InsulinEntry::class,
-        DataSourceConfig::class
+        DataSourceConfig::class,
+        PredictionEntry::class
     ],
-    version = 6
+    version = 7
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun glucoseDao(): GlucoseDao
+
+    abstract fun predictionDao(): PredictionDao
 
     companion object {
 
@@ -194,6 +198,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `prediction_entries` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `horizonMinutes` INTEGER NOT NULL,
+                        `predictedMmolL` REAL NOT NULL,
+                        `predictedMgDl` REAL NOT NULL,
+                        `trendLabel` TEXT NOT NULL,
+                        `confidenceLabel` TEXT NOT NULL,
+                        `modelVersion` TEXT
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -201,7 +224,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "glucose_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
 
                 INSTANCE = instance
