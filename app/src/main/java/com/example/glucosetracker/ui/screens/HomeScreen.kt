@@ -40,7 +40,7 @@ import com.example.glucosetracker.data.local.entities.DataSourceConfig
 import com.example.glucosetracker.data.local.entities.GlucoseEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.local.entities.InsulinEntry
-import com.example.glucosetracker.domain.ml.PredictedGlucose
+import com.example.glucosetracker.domain.ml.PredictionResult
 import com.example.glucosetracker.ui.components.CurrentGlucoseCard
 import com.example.glucosetracker.ui.components.GlucoseChart
 import com.example.glucosetracker.ui.components.StatsCard
@@ -178,7 +178,7 @@ private fun SyncStatusCard(syncState: SyncState, onSyncClick: () -> Unit) {
 }
 
 @Composable
-fun GlucosePredictionCard(prediction: PredictedGlucose?) {
+fun GlucosePredictionCard(prediction: PredictionResult?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.Card),

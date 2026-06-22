@@ -10,8 +10,8 @@ import com.example.glucosetracker.data.local.entities.InjectionEntry
 import com.example.glucosetracker.data.local.entities.InsulinEntry
 import com.example.glucosetracker.data.local.entities.MealEntry
 import com.example.glucosetracker.data.repository.GlucoseRepository
-import com.example.glucosetracker.domain.ml.PredictedGlucose
-import com.example.glucosetracker.domain.ml.SimpleGlucosePredictor
+import com.example.glucosetracker.domain.ml.GlucosePredictor
+import com.example.glucosetracker.domain.ml.PredictionResult
 import com.example.glucosetracker.sync.GlucoseSyncCoordinator
 import com.example.glucosetracker.sync.GlucoseSyncResult
 import com.example.glucosetracker.sync.GlucoseSyncWorker
@@ -66,7 +66,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val syncCoordinator = GlucoseSyncCoordinator(dao)
 
-    private val glucosePredictor = SimpleGlucosePredictor()
+    private val glucosePredictor = GlucosePredictor(application.applicationContext)
 
     private val _syncState = MutableStateFlow(SyncState())
     val syncState: StateFlow<SyncState> = _syncState
@@ -110,7 +110,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyList()
         )
 
-    val predictedGlucose: StateFlow<PredictedGlucose?> = combine(
+    val predictedGlucose: StateFlow<PredictionResult?> = combine(
         glucoseList,
         mealsList,
         insulinList
@@ -122,7 +122,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = null
     )
 
-    val glucosePrediction: StateFlow<PredictedGlucose?> = predictedGlucose
+    val glucosePrediction: StateFlow<PredictionResult?> = predictedGlucose
 
     val dataSourceConfig = repository.dataSourceConfig
         .map { it ?: DataSourceConfig() }
@@ -131,6 +131,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = DataSourceConfig()
         )
+
+    override fun onCleared() {
+        glucosePredictor.close()
+        super.onCleared()
+    }
 
     fun syncFromSource(force: Boolean = false) {
         syncGlucose(force)

@@ -1,6 +1,6 @@
 package com.example.glucosetracker.domain.ml
 
-data class PredictedGlucose(
+data class PredictionResult(
     val horizonMinutes: Int,
     val predictedMmolL: Float,
     val predictedMgDl: Float,
