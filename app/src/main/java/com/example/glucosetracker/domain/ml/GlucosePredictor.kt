@@ -38,7 +38,8 @@ class GlucosePredictor(context: Context) : AutoCloseable {
         return result.copy(
             horizonMinutes = PREDICTION_WINDOW_MINUTES,
             trendLabel = trendLabel(latestGlucose.glucoseMmolL, result.predictedMmolL),
-            confidenceLabel = confidenceLabel(glucose, nowMillis)
+            confidenceLabel = confidenceLabel(glucose, nowMillis),
+            createdAt = nowMillis
         )
     }
 
@@ -72,12 +73,18 @@ class GlucosePredictor(context: Context) : AutoCloseable {
         val rawPrediction = firstOrNull() ?: 0f
         val predictedMgDl = rawPrediction.takeIf { it > NORMALIZED_OUTPUT_MAX } ?: denormalize(rawPrediction, GLUCOSE_MIN_MG_DL, GLUCOSE_MAX_MG_DL)
         val predictedMmolL = predictedMgDl / MMOL_L_TO_MG_DL
+        val boundedPredictedMmolL = predictedMmolL.coerceAtLeast(0f)
+        val boundedPredictedMgDl = predictedMgDl.coerceAtLeast(0f)
         return PredictionResult(
             horizonMinutes = getOrNull(1)?.roundToInt()?.takeIf { it > 0 } ?: PREDICTION_WINDOW_MINUTES,
-            predictedMmolL = predictedMmolL.coerceAtLeast(0f),
-            predictedMgDl = predictedMgDl.coerceAtLeast(0f),
-            trendLabel = currentMmolL?.let { trendLabel(it, predictedMmolL) } ?: "Model",
-            confidenceLabel = "Model"
+            predictedMmolL = boundedPredictedMmolL,
+            predictedMgDl = boundedPredictedMgDl,
+            trendLabel = currentMmolL?.let { trendLabel(it, boundedPredictedMmolL) } ?: "Model",
+            confidenceLabel = "Model",
+            createdAt = System.currentTimeMillis(),
+            riskClass = riskClass(boundedPredictedMmolL),
+            isHypoRisk = boundedPredictedMmolL < HYPO_RISK_THRESHOLD_MMOL_L,
+            isHyperRisk = boundedPredictedMmolL > HYPER_RISK_THRESHOLD_MMOL_L
         )
     }
 
@@ -106,6 +113,12 @@ class GlucosePredictor(context: Context) : AutoCloseable {
         predictedMmolL - currentMmolL >= 1f -> "Rising"
         currentMmolL - predictedMmolL >= 1f -> "Falling"
         else -> "Stable"
+    }
+
+    private fun riskClass(predictedMmolL: Float): String = when {
+        predictedMmolL < HYPO_RISK_THRESHOLD_MMOL_L -> "Hypo"
+        predictedMmolL > HYPER_RISK_THRESHOLD_MMOL_L -> "Hyper"
+        else -> "In range"
     }
 
     private fun normalize(value: Float, min: Float, max: Float): Float = ((value - min) / (max - min)).coerceIn(0f, 1f)
@@ -140,5 +153,7 @@ class GlucosePredictor(context: Context) : AutoCloseable {
         const val INSULIN_MIN_UNITS = 0f
         const val INSULIN_MAX_UNITS = 25f
         const val NORMALIZED_OUTPUT_MAX = 1.5f
+        const val HYPO_RISK_THRESHOLD_MMOL_L = 3.9f
+        const val HYPER_RISK_THRESHOLD_MMOL_L = 10.0f
     }
 }

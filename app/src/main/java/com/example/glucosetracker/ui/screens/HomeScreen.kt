@@ -228,6 +228,17 @@ fun GlucosePredictionCard(prediction: PredictionResult?) {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
+                    text = "Риск: ${prediction.riskClass} · уверенность: ${prediction.confidenceLabel}",
+                    color = prediction.riskColor(),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Создано ${formatTime(prediction.createdAt)}",
+                    color = AppColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
                     text = "Не является медицинской рекомендацией",
                     color = AppColors.Danger,
                     style = MaterialTheme.typography.bodySmall
@@ -235,6 +246,11 @@ fun GlucosePredictionCard(prediction: PredictionResult?) {
             }
         }
     }
+}
+
+private fun PredictionResult.riskColor() = when {
+    isHypoRisk || isHyperRisk -> AppColors.Danger
+    else -> AppColors.PrimaryGreen
 }
 
 private fun SyncStatus.homeLabel(): String = when (this) {
